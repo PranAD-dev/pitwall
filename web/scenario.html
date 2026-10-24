@@ -88,6 +88,16 @@
   .verdict.v-held{border-left:4px solid var(--red);}  .verdict.v-held .big{color:var(--red);}
   .verdict.v-esc{border-left:4px solid var(--amber);}  .verdict.v-esc .big{color:var(--amber);}
 
+  /* ---- agent report (spoken) ---- */
+  .report{margin:8px 0 16px;padding:16px 18px;border-left:4px solid var(--volt);
+    background:linear-gradient(135deg,rgba(198,255,46,.08),var(--panel));animation:pop .4s ease;}
+  .report .k{font-size:10px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase;
+    display:flex;align-items:center;gap:12px;}
+  .report .speak{margin-left:auto;background:var(--volt);color:#05080c;border:0;padding:6px 13px;
+    font-weight:800;font-size:11px;letter-spacing:.06em;cursor:pointer;}
+  .report .speak.playing{background:var(--amber);}
+  .report .txt{color:var(--white);font-size:14.5px;line-height:1.65;margin-top:9px;}
+
   /* ---- audit ---- */
   #audit .arow{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);
     font-size:12.5px;font-family:ui-monospace,monospace;}
@@ -234,6 +244,7 @@ function addStep(step){
   }
   if(k==='forecast'){ renderForecast(step.data||{}); return; }
   if(k==='audit'){ renderAudit(step.data||[]); return; }
+  if(k==='report'){ renderReport(step.text); return; }
   if(k==='post'){ verdict(step.data||{}); return; }
   const s=el('step');
   if(k==='think'){
@@ -265,6 +276,22 @@ function renderAudit(rows){
     auditEl.appendChild(el('arow',
       `<span class="at">${esc(r.at)}</span><span class="actor">${esc(r.actor)}</span>`+
       `<span class="act">${esc(r.action)}</span><span>${mark}</span><span class="reason">${esc(r.reason||'')}</span>`));});
+}
+
+function speak(text, btn){
+  try{
+    window.speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(text); u.rate=1.03; u.pitch=1.0;
+    if(btn){ btn.classList.add('playing'); btn.textContent='▮▮ SPEAKING';
+      u.onend=()=>{btn.classList.remove('playing'); btn.textContent='▶ SPEAK';}; }
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+function renderReport(text){
+  const d=el('report cut', `<div class="k">agent report <button class="speak">▶ SPEAK</button></div><div class="txt">${esc(text)}</div>`);
+  const btn=d.querySelector('.speak'); btn.onclick=()=>speak(text, btn);
+  stepsEl.appendChild(d); document.getElementById('trail').scrollTop=1e9;
+  speak(text, btn);  // auto-play once (the RUN click is the audio gesture)
 }
 
 let es=null;

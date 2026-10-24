@@ -206,6 +206,32 @@ def _audit_trail(subject: str) -> list[dict]:
         conn.close()
 
 
+_VERDICT_SAY = {
+    "POSTED": "I completed it and posted it to the ledger",
+    "HELD": "I placed it on hold and routed it up",
+    "NEEDS_INFO": "I escalated it to a human",
+}
+
+
+def _report(out: dict | None, imp: dict | None, trail: list[dict]) -> str:
+    """A grounded, spoken-style report of the decision — the text LiveKit/Cartesia voices."""
+    final = (out or {}).get("final", "escalated")
+    lead = _VERDICT_SAY.get(final, "I escalated it to a human — I won't guess")
+    reason = next((r["reason"] for r in trail if r["action"] == "propose"), "")
+    parts = [f"Here is the decision. {lead}."]
+    if reason:
+        parts.append(reason if reason.endswith(".") else reason + ".")
+    if imp and imp.get("kind") not in (None, "none") and imp.get("line"):
+        parts.append("For the forecast, this " + imp["line"] + ".")
+    if out and out.get("policy"):
+        parts.append(f"It auto-completed under policy {out['policy']} — the hard checks in code made the call, not a prompt.")
+    elif out and out.get("escalated_to"):
+        who = out["escalated_to"].replace("human_", "").replace("_", " ")
+        parts.append(f"It needs the {who}; the agent cannot approve its own work.")
+    parts.append(f"Every step is in the append-only audit log, {len(trail)} entries — so months from now, 'why?' is one query.")
+    return " ".join(parts)
+
+
 def run_scenario(text: str, emit) -> dict:
     """Perceive (Claude) → decide (code) → post (gateway) → audit. Streams via emit."""
     s = get_settings()
@@ -225,6 +251,7 @@ def run_scenario(text: str, emit) -> dict:
     sr = proposal.get("subject_refs", {}) or {}
     wi = "WI-scn-" + hashlib.md5(text.encode()).hexdigest()[:8]
 
+    out = None
     if stype in KIND and sr:
         try:
             out = process_case({"issue_id": wi.replace("WI-", ""), "type": stype, "subject_refs": sr})
@@ -240,13 +267,15 @@ def run_scenario(text: str, emit) -> dict:
               "text": "novel or incomplete — escalating to human_controller (code refuses to guess)"})
 
     # forecast ripple (deck slide 7: the 5th system) — how this decision moved the numbers
+    imp = None
     try:
         from .forecast import impact, snapshot
-        emit({"actor": "forecast", "kind": "forecast",
-              "data": {"snapshot": snapshot(), "impact": impact(stype, sr)}})
+        imp = impact(stype, sr)
+        emit({"actor": "forecast", "kind": "forecast", "data": {"snapshot": snapshot(), "impact": imp}})
     except Exception:
         pass
 
     trail = _audit_trail(wi)
     emit({"actor": "system", "kind": "audit", "data": trail})
+    emit({"actor": "ai_agent", "kind": "report", "text": _report(out, imp, trail), "data": {"wi": wi}})
     return {"ok": True, "wi": wi, "audit": trail}
