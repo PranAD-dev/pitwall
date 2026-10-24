@@ -17,7 +17,8 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from psycopg.rows import dict_row
 
 from pitwall.db import connect
@@ -324,7 +325,12 @@ async def scenario_stream(text: str) -> StreamingResponse:
 # Serve the frontend
 # --------------------------------------------------------------------------- #
 @app.get("/")
-def index() -> FileResponse:
+def index() -> RedirectResponse:
+    return RedirectResponse("/fc/index.html")  # the stadium is the home
+
+
+@app.get("/home")
+def home_ui() -> FileResponse:
     return FileResponse(WEB / "home.html")
 
 
@@ -341,3 +347,7 @@ def board_ui() -> FileResponse:
 @app.get("/match")
 def match_ui() -> FileResponse:
     return FileResponse(WEB / "football.html")
+
+
+# Serve the whole 3D stadium (web/fc) same-origin — one server, no :8000, no CORS.
+app.mount("/fc", StaticFiles(directory=str(WEB / "fc"), html=True), name="fc")
