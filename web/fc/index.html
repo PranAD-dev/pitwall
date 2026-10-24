@@ -96,9 +96,16 @@
     #menu .md{color:rgba(255,255,255,.62);font-size:13px;line-height:1.55;max-width:95%;}
     #menu .mgo{position:absolute;right:18px;top:18px;color:rgba(255,255,255,.35);font-size:20px;}
     #menu .mtile:hover .mgo{color:#c6ff2e;}
-    #menu-btn{position:fixed;top:14px;right:14px;z-index:41;background:rgba(7,11,17,.7);color:#c6ff2e;
+    #menu-btn{position:fixed;top:14px;right:120px;z-index:41;background:rgba(7,11,17,.7);color:#c6ff2e;
       border:1px solid rgba(198,255,46,.4);padding:8px 14px;font:12px ui-monospace,monospace;cursor:pointer;
       letter-spacing:.06em;display:none;}
+    /* top-right clean-view toggle — hide every Pit Wall overlay to reveal the field */
+    #field-btn{position:fixed;top:14px;right:14px;z-index:60;background:rgba(7,11,17,.82);color:#c6ff2e;
+      border:1px solid rgba(198,255,46,.45);border-radius:8px;padding:8px 14px;font:12px ui-monospace,monospace;
+      cursor:pointer;letter-spacing:.06em;}
+    #field-btn:hover{background:rgba(198,255,46,.16);border-color:#c6ff2e;}
+    body.pw-clean #menu,body.pw-clean #pwnav,body.pw-clean #menu-btn,body.pw-clean #term-bar,
+    body.pw-clean #control,body.pw-clean #broadcast{display:none!important;}
   </style>
   <div id="menu">
     <div class="mwrap">
@@ -121,6 +128,16 @@
     </div>
   </div>
   <button id="menu-btn">☰ MENU</button>
+  <button id="field-btn">👁 FIELD</button>
+  <script>
+    (function(){
+      const b=document.getElementById('field-btn');
+      b.onclick=function(){
+        const on=document.body.classList.toggle('pw-clean');
+        b.textContent = on ? '↩ BACK' : '👁 FIELD';
+      };
+    })();
+  </script>
 
   <!-- ================= in-stadium Control Room (transparent overlay) ================= -->
   <style>
