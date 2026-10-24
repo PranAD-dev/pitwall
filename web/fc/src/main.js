@@ -82,7 +82,7 @@ window.__APP = { scene, renderer, ball, teams, match, rig, commentary, audio, TH
 
 // --- Empty field view: the stadium + pitch, every player and the ball removed,
 // with free orbit navigation (drag to rotate · scroll to zoom). ---
-const OVERVIEW = { az: 2.110, pol: 0.594, r: 75.2, x: 0, y: 3, z: 0 };
+const OVERVIEW = { az: Math.PI, pol: 0.26, r: 105, x: 0, y: 3, z: 0 };
 const nav = {
   az: OVERVIEW.az, pol: OVERVIEW.pol, r: OVERVIEW.r,          // current orbit
   taz: OVERVIEW.az, tpol: OVERVIEW.pol, tr: OVERVIEW.r,       // desired orbit
@@ -167,8 +167,7 @@ function buildNavUI() {
   document.head.appendChild(style);
   const bar = document.createElement('div');
   bar.id = 'pwnav';
-  bar.innerHTML = '<button id="pw-term">⌨ SCENARIO</button><button id="pw-report">📺 REPORT</button>' +
-    '<button id="pw-view">◎ VIEW BOARD</button>' +
+  bar.innerHTML = '<button id="pw-view">◎ VIEW BOARD</button>' +
     '<button id="pw-prev">←</button><span id="pw-label">OVERVIEW</span><button id="pw-next">→</button>' +
     '<button id="pw-over">⤢ OVERVIEW</button><button id="pw-full" title="fullscreen">⛶</button>';
   document.body.appendChild(bar);
@@ -177,8 +176,6 @@ function buildNavUI() {
   document.getElementById('pw-view').addEventListener('click', () => { focusBoard(cur()); hideMenu(); });
   document.getElementById('pw-prev').addEventListener('click', () => { focusBoard(cur() - 1); hideMenu(); });
   document.getElementById('pw-next').addEventListener('click', () => { focusBoard(cur() + 1); hideMenu(); });
-  document.getElementById('pw-term').addEventListener('click', activateTerminal);
-  document.getElementById('pw-report').addEventListener('click', activateReport);
   document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); deactivateReport(); if (window.__pwShowMenu) window.__pwShowMenu(); });
   document.getElementById('pw-full').addEventListener('click', () => {
     const d = document.documentElement;
@@ -289,8 +286,8 @@ function setupField() {
   reporter = createReporter(1280);   // the finance-report billboard (📺 REPORT)
   reportPlayer = createLiveReport({ reporter });
   // intro framing: the exact angle you picked (press "p" to re-capture)
-  nav.dx = nav.tx = OVERVIEW.x; nav.dy = nav.ty = OVERVIEW.y; nav.dz = nav.tz = OVERVIEW.z;
-  nav.taz = nav.az = OVERVIEW.az; nav.tpol = nav.pol = OVERVIEW.pol; nav.tr = nav.r = OVERVIEW.r;
+  nav.dx = nav.tx = 44; nav.dy = nav.ty = 3; nav.dz = nav.tz = 0;
+  nav.taz = nav.az = -1.592; nav.tpol = nav.pol = 0.233; nav.tr = nav.r = 96.2;
   initNav();
   buildNavUI();
 }
