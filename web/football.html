@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pran FC — Transfer Centre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --pitch:#081310; --pitch2:#0d1a15; --panel:#0f1d17; --line:#1c2d25; --linebright:#2a3f35;
+    --chalk:#eef4ee; --dim:#7d8e84;
+    --news:#ffd60a;              /* deadline-day yellow — brand + ticker only */
+    --turf:#3ad17a;              /* green card: approved / posted */
+    --amber:#f2a938;             /* yellow card: needs-info / caution */
+    --red:#e8392c;               /* red card: denied / rejected / fraud */
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{background:
+       radial-gradient(1200px 500px at 50% -10%, #10261c 0%, transparent 60%),
+       var(--pitch);
+       color:var(--chalk);font-family:"Barlow",system-ui,sans-serif;font-size:14px;}
+  .mono{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums;}
+  .osw{font-family:"Oswald",sans-serif;text-transform:uppercase;letter-spacing:.04em;}
+
+  /* ---- broadcast header ---- */
+  header{display:flex;align-items:center;gap:16px;padding:12px 22px;
+         border-bottom:2px solid var(--news);background:linear-gradient(180deg,#0c1a14,#081310);}
+  .crest{width:40px;height:46px;flex:none;display:flex;align-items:center;justify-content:center;
+         font-family:"Oswald";font-weight:700;font-size:22px;color:#0a1410;
+         background:linear-gradient(170deg,var(--news),#caa700);
+         clip-path:polygon(50% 0,100% 15%,100% 60%,50% 100%,0 60%,0 15%);}
+  .wordmark{font-family:"Oswald";font-weight:700;font-size:21px;letter-spacing:.06em;line-height:1;}
+  .wordmark .sub{display:block;font-size:10.5px;letter-spacing:.34em;color:var(--news);font-weight:500;margin-top:3px;}
+  .clock{margin-left:auto;display:flex;align-items:center;gap:20px;}
+  .clock .time{font-family:"JetBrains Mono";font-weight:700;font-size:20px;color:var(--news);}
+  .live{font-family:"Oswald";font-size:11px;letter-spacing:.18em;color:var(--dim);}
+  .live .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--turf);
+             margin-right:7px;box-shadow:0 0 8px var(--turf);animation:pulse 2s infinite;}
+  @keyframes pulse{50%{opacity:.4;}}
+
+  /* ---- deadline-day ticker ---- */
+  .ticker{display:flex;align-items:stretch;background:#000;border-bottom:1px solid var(--line);overflow:hidden;}
+  .ticker .flag{background:var(--news);color:#0a1410;font-family:"Oswald";font-weight:700;
+                letter-spacing:.1em;font-size:12px;display:flex;align-items:center;padding:0 16px;white-space:nowrap;
+                clip-path:polygon(0 0,100% 0,88% 100%,0 100%);padding-right:26px;}
+  .ticker .track{flex:1;overflow:hidden;position:relative;}
+  .ticker .run{display:inline-flex;gap:38px;white-space:nowrap;padding:8px 24px;
+               animation:scroll 42s linear infinite;}
+  .ticker:hover .run{animation-play-state:paused;}
+  @keyframes scroll{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+  .tk{font-size:13px;}
+  .tk b{font-family:"Oswald";letter-spacing:.03em;}
+  .tk .g{color:var(--turf);} .tk .a{color:var(--amber);} .tk .r{color:var(--red);}
+  .tk .sub{color:var(--dim);}
+
+  /* ---- scoreboard strip ---- */
+  .board{display:grid;grid-template-columns:repeat(5,1fr);background:
+         repeating-linear-gradient(0deg,#0a1711 0 2px,#0c1a13 2px 4px);
+         border-bottom:1px solid var(--line);}
+  .sb{padding:14px 20px;border-right:1px solid var(--line);}
+  .sb .k{font-family:"Oswald";font-size:10.5px;letter-spacing:.16em;color:var(--dim);}
+  .sb .v{font-family:"JetBrains Mono";font-weight:700;font-size:26px;margin-top:4px;line-height:1;}
+  .sb .v small{font-family:"Barlow";font-size:12px;color:var(--dim);font-weight:500;}
+  .sb .v.cash{font-size:15px;white-space:nowrap;letter-spacing:-.01em;}
+  .sb.red .v{color:var(--red);} .sb.green .v{color:var(--turf);} .sb.news .v{color:var(--news);}
+
+  /* ---- layout ---- */
+  .grid{display:grid;grid-template-columns:340px 300px 1fr;height:calc(100vh - 196px);}
+  .col{overflow:auto;} .col.l{border-right:1px solid var(--line);} .col.m{border-right:1px solid var(--line);}
+  .sechead{font-family:"Oswald";font-size:12px;letter-spacing:.14em;color:var(--chalk);
+           padding:14px 18px 10px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;}
+  .sechead .n{color:var(--dim);}
+
+  /* ---- team sheet (queue) ---- */
+  .wi{display:flex;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid #111c16;cursor:pointer;transition:.12s;}
+  .wi:hover{background:#0e1b14;} .wi.active{background:#12241a;box-shadow:inset 3px 0 0 var(--news);}
+  .shield{width:30px;height:34px;flex:none;display:flex;align-items:center;justify-content:center;
+          font-family:"Oswald";font-weight:700;font-size:14px;color:var(--chalk);background:#16271e;
+          clip-path:polygon(50% 0,100% 20%,100% 70%,50% 100%,0 70%,0 20%);}
+  .wi .body{flex:1;min-width:0;}
+  .wi .id{font-family:"JetBrains Mono";font-size:12.5px;}
+  .wi .meta{color:var(--dim);font-size:12px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .wi .amt{font-family:"JetBrains Mono";font-size:12.5px;color:var(--chalk);}
+  .card-chip{font-family:"Oswald";font-size:10px;font-weight:600;letter-spacing:.08em;padding:3px 8px;border-radius:3px;white-space:nowrap;}
+  .c-NEW{background:#17271f;color:#9fb8ab;} .c-PROPOSED{background:#1d2a3f;color:#8fb6ff;}
+  .c-NEEDS_INFO{background:#2d2410;color:var(--amber);} .c-APPROVED{background:#123122;color:var(--turf);}
+  .c-POSTED{background:#0f2a1a;color:var(--turf);} .c-HELD{background:#2d1512;color:var(--red);}
+  .c-REJECTED{background:#2a1413;color:#ff8178;}
+
+  /* ---- the dugout (buttons) ---- */
+  .dug{padding:16px;}
+  .play{display:block;width:100%;text-align:left;background:linear-gradient(180deg,#132219,#0f1b14);
+        color:var(--chalk);border:1px solid var(--line);border-left:3px solid var(--linebright);
+        border-radius:7px;padding:13px 15px;font-family:inherit;cursor:pointer;margin-bottom:11px;transition:.14s;}
+  .play:hover{border-color:var(--linebright);transform:translateX(2px);}
+  .play .bt{font-family:"Oswald";font-size:14.5px;letter-spacing:.03em;}
+  .play .bd{color:var(--dim);font-size:12px;margin-top:4px;}
+  .play.red{border-left-color:var(--red);} .play.red:hover{border-color:var(--red);}
+  .play.amber{border-left-color:var(--amber);} .play.amber:hover{border-color:var(--amber);}
+  .play:disabled{opacity:.5;cursor:default;transform:none;}
+  .roster{font-size:12px;color:var(--dim);padding:4px 2px;line-height:1.9;}
+  .roster b{color:var(--chalk);font-family:"Oswald";font-weight:500;letter-spacing:.02em;}
+
+  /* ---- VAR review (result) ---- */
+  .var{padding:18px 22px;}
+  .var-badge{display:inline-flex;align-items:center;gap:8px;font-family:"Oswald";font-size:11px;
+             letter-spacing:.2em;color:var(--news);border:1px solid #2e2a10;background:#15130a;
+             padding:5px 12px;border-radius:4px;}
+  .var-badge .sq{width:9px;height:12px;background:var(--news);border-radius:1px;}
+  .var-title{font-family:"Oswald";font-size:24px;letter-spacing:.02em;margin:12px 0 2px;}
+  .var-head{color:var(--news);font-size:13.5px;margin-bottom:18px;max-width:62ch;}
+  .label{font-family:"Oswald";font-size:11px;letter-spacing:.14em;color:var(--dim);margin:20px 0 10px;
+         border-bottom:1px solid var(--line);padding-bottom:7px;}
+  /* steps + scenes reveal */
+  .step{display:flex;gap:12px;align-items:baseline;padding:9px 0;border-bottom:1px solid #111c16;
+        opacity:0;transform:translateX(-6px);transition:.26s;}
+  .step.show{opacity:1;transform:none;}
+  .refcard{width:13px;height:18px;border-radius:2px;flex:none;transform:rotate(-7deg);box-shadow:0 2px 6px rgba(0,0,0,.4);}
+  .rc-green{background:var(--turf);} .rc-amber{background:var(--amber);} .rc-red{background:var(--red);}
+  .step .ac{font-family:"Oswald";letter-spacing:.02em;min-width:168px;}
+  .step .st{color:var(--dim);font-size:13px;}
+  .scene{padding:11px 0;border-bottom:1px solid #111c16;opacity:0;transform:translateY(5px);transition:.26s;}
+  .scene.show{opacity:1;transform:none;}
+  .scene .say{font-size:14.5px;} .scene .say::before{content:"▸ ";color:var(--turf);}
+  .scene .facts{font-family:"JetBrains Mono";color:var(--dim);font-size:12px;margin-top:5px;}
+  .aud{display:flex;gap:11px;align-items:baseline;padding:7px 0;border-bottom:1px solid #111c16;opacity:0;transition:.22s;}
+  .aud.show{opacity:1;} .aud .t{font-family:"JetBrains Mono";color:var(--dim);font-size:12px;min-width:62px;}
+  .aud .who{font-family:"Oswald";letter-spacing:.02em;min-width:140px;}
+  .aud .did{font-size:13px;} .aud .did.deny{color:var(--red);} .aud .did.ok{color:var(--turf);}
+  .aud .rsn{color:var(--dim);font-size:12.5px;}
+  .empty{color:var(--dim);text-align:center;line-height:1.9;display:flex;flex-direction:column;
+         align-items:center;justify-content:center;min-height:46vh;font-size:14.5px;}
+  .empty::before{content:"◎";font-size:40px;color:var(--line);margin-bottom:16px;}
+  .spin{font-family:"Oswald";letter-spacing:.1em;color:var(--news);padding:20px 0;}
+  @media (prefers-reduced-motion:reduce){ .run{animation:none;} .live .dot{animation:none;}
+    .step,.scene,.aud{transition:none;opacity:1;transform:none;} }
+</style>
+</head>
+<body>
+<header>
+  <div class="crest">P</div>
+  <div class="wordmark">PRAN&nbsp;FC<span class="sub">TRANSFER CENTRE</span></div>
+  <div class="clock">
+    <div class="live"><span class="dot"></span>LIVE · CLOUD LEDGER</div>
+    <div class="time" id="clock">90:00+3</div>
+  </div>
+</header>
+
+<div class="ticker">
+  <div class="flag">⚡ BREAKING</div>
+  <div class="track"><div class="run" id="ticker"></div></div>
+</div>
+
+<div class="board" id="board"></div>
+
+<div class="grid">
+  <div class="col l">
+    <div class="sechead">Team sheet <span class="n" id="qn"></span></div>
+    <div id="queue"></div>
+  </div>
+
+  <div class="col m">
+    <div class="sechead">The dugout</div>
+    <div class="dug">
+      <button class="play" id="b-sync"><div class="bt">Sync bank receipts</div>
+        <div class="bd">turn unmatched incoming wires into work items</div></button>
+      <button class="play" id="b-walk"><div class="bt">Walk a wire → posted</div>
+        <div class="bd">new → proposed → ✋ denied → approved → posted</div></button>
+      <button class="play red" id="b-fraud"><div class="bt">Fraud: bank-detail change</div>
+        <div class="bd">lookalike domain → buy evidence → hold → CFO</div></button>
+      <button class="play amber" id="b-addon"><div class="bt">Add-on dispute</div>
+        <div class="bd">25 claimed · 24 league → reject with clause + match ids</div></button>
+      <div class="sechead" style="padding:16px 0 10px;border:0">Squad · model-played</div>
+      <div class="roster"><b>sync</b> · <b>ai_agent</b> · <b>accountant</b> · <b>controller</b>
+        · <b>CFO</b> · <b>gateway</b></div>
+    </div>
+  </div>
+
+  <div class="col r">
+    <div class="var">
+      <div class="var-badge"><span class="sq"></span> VAR REVIEW</div>
+      <div id="result"><div class="empty">Pick a move from the dugout.<br>
+        Every decision runs live through the gateway on your cloud ledger —
+        and shows its card.</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s), api=p=>fetch(p).then(r=>r.json());
+const post=p=>fetch(p,{method:"POST"}).then(r=>r.json());
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let activeWi=null;
+
+function money(n){ if(n==null) return "—"; const a=Math.abs(n);
+  return (n<0?"-":"")+(a>=1e6?(a/1e6).toFixed(1)+"M":a>=1e3?(a/1e3).toFixed(0)+"k":a); }
+function squadNo(id){ let h=0; for(const c of id) h=(h*31+c.charCodeAt(0))%97; return (h%98)+1; }
+
+async function loadBoard(){
+  const m=await api("/api/metrics");
+  const cash=Object.entries(m.cash).map(([c,v])=>`${c} ${money(v)}`).join("  ");
+  $("#board").innerHTML=`
+   <div class="sb news"><div class="k">Posted</div><div class="v">${String(m.posted||0).padStart(2,'0')} <small>done deals</small></div></div>
+   <div class="sb red"><div class="k">On hold</div><div class="v">${String(m.held||0).padStart(2,'0')}</div></div>
+   <div class="sb"><div class="k">Planted issues</div><div class="v">${m.planted_issues}</div></div>
+   <div class="sb"><div class="k">Cash position</div><div class="v cash">${cash||'—'}</div></div>
+   <div class="sb green"><div class="k">Calls logged</div><div class="v">${m.audit_allowed} <small>/ ${m.audit_denied} denied</small></div></div>`;
+}
+
+async function loadTicker(){
+  const f=await api("/api/feed");
+  if(!f.length){ $("#ticker").innerHTML='<span class="tk sub">no decisions yet — make a move from the dugout</span>'; return; }
+  const one=f.map(x=>`<span class="tk"><b class="${x.kind==='green'?'g':x.kind==='amber'?'a':'r'}">${x.label}</b>
+    <span class="sub">· ${x.subject} · ${x.reason}</span></span>`).join("");
+  $("#ticker").innerHTML=one+one; // duplicate for seamless scroll
+}
+
+async function loadQueue(){
+  const q=await api("/api/queue"); $("#qn").textContent=q.length;
+  $("#queue").innerHTML=q.map(w=>`
+    <div class="wi ${w.id===activeWi?'active':''}" data-id="${w.id}">
+      <div class="shield">${squadNo(w.id)}</div>
+      <div class="body">
+        <div class="id">${w.id}</div>
+        <div class="meta">${w.kind}${w.failing_check?' · <span style="color:var(--red)">✗ '+w.failing_check+'</span>':''}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="card-chip c-${w.state}">${w.state}</div>
+        <div class="amt" style="margin-top:5px">${w.amount?money(w.amount)+' '+w.currency:''}</div>
+      </div>
+    </div>`).join("");
+  document.querySelectorAll(".wi").forEach(e=>e.onclick=()=>showAudit(e.dataset.id));
+}
+
+function refresh(){ loadBoard(); loadTicker(); loadQueue(); }
+async function reveal(sel){ for(const n of document.querySelectorAll(sel)){ n.classList.add("show"); await sleep(110);} }
+function setResult(h){ $("#result").innerHTML=h; }
+function busy(l){ setResult(`<div class="spin">● ${l}…</div>`); }
+
+const RC={true:{propose:'amber',approve:'green',post:'green',create:'amber',answer:'amber',release:'green'},};
+function cardFor(r){ if(!r.allowed) return 'red';
+  return {post:'green',approve:'green',release:'green',reject:'red',hold:'red'}[r.action]||'amber'; }
+
+function auditHTML(rows){ if(!rows||!rows.length) return '<div class="empty">no cards shown yet</div>';
+  return rows.map(r=>`<div class="aud"><div class="refcard rc-${cardFor(r)}" style="width:11px;height:15px"></div>
+    <div class="t">${r.at}</div><div class="who">${r.actor}</div>
+    <div class="did ${r.allowed?'ok':'deny'}">${r.allowed?'':'✗ '}${r.action}${r.state?' ['+r.state+']':''}</div>
+    <div class="rsn">${(r.reason||'').slice(0,52)}</div></div>`).join(""); }
+
+function stepsHTML(steps){ return steps.map(s=>`<div class="step">
+   <div class="refcard rc-${s.ok?(s.action==='propose'?'amber':'green'):'red'}"></div>
+   <div class="ac">${s.actor} · ${s.action}</div>
+   <div class="st">${s.ok?s.state:'🟥 RED CARD — '+(s.why||'')}</div></div>`).join(""); }
+
+function scenesHTML(plan){ if(!plan||!plan.scenes||!plan.scenes.length) return '';
+  return plan.scenes.map(sc=>`<div class="scene"><div class="say">${sc.say}</div>
+    <div class="facts">${(sc.facts||[]).map(f=>f.key+'='+f.value).join('   ')}</div></div>`).join(""); }
+
+async function showAudit(wi){ activeWi=wi; loadQueue();
+  const rows=await api("/api/audit/"+wi);
+  setResult(`<div class="var-title">${wi}</div>
+    <div class="label">The ref's book · "why?" is one query</div>${auditHTML(rows)}`);
+  await reveal("#result .aud"); }
+
+$("#b-sync").onclick=async()=>{ busy("scouting the bank feed");
+  const r=await post("/api/sim/sync");
+  setResult(`<div class="var-title">Sync</div><div class="var-head">${r.message}</div>
+    ${r.created.map(c=>`<div class="scene">signed → <b>${c}</b></div>`).join("")}`);
+  await reveal("#result .scene"); refresh(); };
+
+$("#b-walk").onclick=async()=>{ busy("walking a wire through the gateway");
+  const r=await post("/api/sim/walk");
+  if(r.detail){ setResult(`<div class="empty">${r.detail}</div>`); return; }
+  activeWi=r.work_item;
+  setResult(`<div class="var-title">${r.work_item}</div>
+    <div class="var-head">a wire walked new → posted — with a live separation-of-duties red card</div>
+    <div class="label">Play-by-play</div>${stepsHTML(r.steps)}
+    <div class="label">The ref's book</div>${auditHTML(r.audit)}`);
+  await reveal("#result .step"); await reveal("#result .aud"); refresh(); };
+
+async function moment(ep,label){ busy(label);
+  const r=await post(ep); activeWi=r.work_item;
+  setResult(`<div class="var-title">${r.work_item}</div><div class="var-head">${r.headline}</div>
+    <div class="label">The analyst's read · grounded</div>${scenesHTML(r.explanation)}
+    <div class="label">The ref's book · denied attempts kept</div>${auditHTML(r.audit)}`);
+  await reveal("#result .scene"); await reveal("#result .aud"); refresh(); }
+
+$("#b-fraud").onclick=()=>moment("/api/sim/fraud","reviewing the bank-detail change");
+$("#b-addon").onclick=()=>moment("/api/sim/addon","checking the add-on vs match data");
+
+// stoppage-time clock, for flavour
+let tt=93; setInterval(()=>{ tt+=0.1; $("#clock").textContent="90:00+"+Math.floor(tt-90); },6000);
+refresh();
+
+// deep-link: ?demo=fraud|addon|walk|sync auto-plays a scenario (for the live demo)
+const demo=new URLSearchParams(location.search).get("demo");
+if(demo){ setTimeout(()=>({fraud:()=>$("#b-fraud").click(),addon:()=>$("#b-addon").click(),
+  walk:()=>$("#b-walk").click(),sync:()=>$("#b-sync").click()}[demo]?.()),700); }
+</script>
+</body>
+</html>

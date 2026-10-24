@@ -53,6 +53,9 @@ explain: env ## Build + play the fraud-hold explanation, export the browser plan
 	$(UV) run pitwall explain plan WI-5602
 	$(UV) run pitwall explain export WI-5602 -o voice/plan.js
 
+fc: env ## Run the Pran FC prototype (frontend + live backend) at :4055
+	$(UV) run uvicorn api.app:app --port 4055 --reload
+
 demo: env ## Run the scripted demo scenario (final whistle cascade)
 	$(UV) run pitwall demo run
 
