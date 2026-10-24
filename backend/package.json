@@ -1,0 +1,16 @@
+{
+  "name": "explainer-token-backend",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "LiveKit token + agent-dispatch backend for the Explainer (mirrors virtualhelper/backend)",
+  "scripts": {
+    "start": "node token_server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "livekit-server-sdk": "^2.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1"
+  }
+}

@@ -30,18 +30,34 @@ uv run pitwall explain export WI-5602 -o voice/plan.js         # then open voice
 `voice/replay.html` is the audio-fallback player: double-click it to watch the
 explanation build live (captions + canvas), no server required.
 
-## Turn on voice (drop keys in `.env`)
-`LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `CARTESIA_API_KEY`
-(+ `ANTHROPIC_API_KEY` for free-form Q&A), then:
+## Turn on voice (LiveKit, data-channel wiring)
+`agent.py` follows the proven **classic-worker + data-channel** pattern from
+`Steve-Dusty/virtualhelper` (`cli.run_app(WorkerOptions(entrypoint_fnc=…))`,
+`room.on("data_received")`, `publish_data(topic=…)`). It's **request/response** —
+your UI button sends an explain-request, the agent builds the grounded plan and
+streams the scenes back:
+
+| topic | dir | payload |
+|---|---|---|
+| `lk.explain-request` | UI → agent | `{requestId, subject, as_of?}` |
+| `lk.explain-processing` | agent → UI | `{requestId, status:"processing"}` |
+| `lk.explain-plan` | agent → UI | `{requestId, plan}` (full grounded plan) |
+| `lk.explain-scene` | agent → UI | `{requestId, index, total, scene}` (paced, build-live) |
+| `lk.explain-error` | agent → UI | `{requestId, error}` |
+
+Pick the data with `EXPLAIN_SOURCE` (`json:<dir>` | `pitwall` | unset=sample).
+
 ```bash
+cd backend && npm install && npm start        # token + room + agent dispatch (:3001)
 uv pip install -r voice/requirements.txt
-uv run uvicorn voice.token_server:app --port 4020   # browser join tokens
-uv run python voice/agent.py dev                    # the LiveKit explainer agent
+EXPLAIN_SOURCE=json:/your/requests  uv run python voice/agent.py dev
 ```
-`agent.py` uses Cartesia `sonic-3` TTS (via the LiveKit plugin, aligned
-transcripts on), speaks each **validated** scene sentence, and pushes the scene's
-UI focus to the frontend as a data message on topic `ui`. It refuses any
-approve/pay/post request and names the gateway rule.
+Frontend: `GET /token?room=…` to join, then
+`room.on('dataReceived', (p, part, kind, topic) => …)` for the scenes and
+`publishData(encode({requestId, subject}), {topic:'lk.explain-request', reliable:true})`
+on the button. Speak each scene with Cartesia or the browser's speech synthesis.
+(`voice/token_server.py` is a Python-only token minter if you prefer; the Node
+`backend/` is the reference wiring and also dispatches the agent.)
 
 ## Files
 - `pitwall/explain/tools.py` — read-only tools (voice_readonly role)

@@ -1,27 +1,27 @@
-"""Pit Wall Explainer — a reusable LiveKit voice agent (read-only) that narrates
-financial decisions while driving a terminal canvas scene by scene.
+"""Explainer LiveKit agent — classic worker, data-channel driven.
 
-It is DATA-AGNOSTIC: it narrates whatever explain-request it resolves for a subject
-— plug yours in via EXPLAIN_SOURCE:
-    EXPLAIN_SOURCE=json:/path/to/requests_dir   -> narrate your financial data
-    EXPLAIN_SOURCE=pitwall                       -> narrate the football demo (WI-…)
-    (unset)                                      -> the bundled sample (a monthly close)
-Room metadata {"subject": "...", "as_of": "..."} picks the subject.
+Mirrors the proven wiring in Steve-Dusty/virtualhelper (agent/main_agent.py):
+classic `cli.run_app(WorkerOptions(entrypoint_fnc=...))`, register
+`ctx.room.on("data_received", ...)` BEFORE connect, and do request/response over
+data-channel topics. Your UI button sends an explain-request; the agent builds the
+grounded plan (our explainer engine) and streams the scenes back for the frontend
+to render + speak.
 
-Verified against docs.livekit.io (Oct 2026): AgentServer / @server.rtc_session,
-AgentSession with inference STT + Cartesia TTS, UI focus pushed as data messages on
-topic "ui". Needs LIVEKIT_URL/API_KEY/API_SECRET (+ CARTESIA_API_KEY for voice,
-ANTHROPIC_API_KEY to polish the spoken lines). With no keys this file does not run —
-use `pitwall explain sample` / `pitwall explain from-json` + voice/replay.html offline.
+Contract (JSON on the data channel):
+  frontend -> agent   lk.explain-request     {requestId, subject, as_of?}
+  agent -> frontend   lk.explain-processing  {requestId, status:"processing"}
+  agent -> frontend   lk.explain-plan        {requestId, plan}                 (full plan)
+  agent -> frontend   lk.explain-scene       {requestId, index, total, scene}  (paced, build-live)
+  agent -> frontend   lk.explain-error       {requestId, error}
 
-HARD RULES: read-only (never propose/approve/pay/post; a spoken "yes" is not an
-approval); never speaks a number the source didn't return (the engine validates it).
-
+Data source via EXPLAIN_SOURCE (json:<dir> | pitwall | sample). Needs
+LIVEKIT_URL/API_KEY/API_SECRET. ANTHROPIC_API_KEY optional (polishes say-lines).
 Run:  uv pip install -r voice/requirements.txt  &&  uv run python voice/agent.py dev
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
@@ -38,23 +38,23 @@ from explainer.providers import JsonProvider
 load_dotenv()
 
 try:
-    from livekit import agents
-    from livekit.agents import Agent, AgentServer, AgentSession, inference, room_io
-    from livekit.agents.llm import function_tool
-    from livekit.plugins import cartesia
-except ImportError as e:  # pragma: no cover — only when deps/keys absent
+    from livekit import agents, rtc
+    from livekit.agents import JobContext, WorkerOptions, cli
+except ImportError as e:  # pragma: no cover — only when deps absent
     raise SystemExit(
         "voice deps not installed. `uv pip install -r voice/requirements.txt`, set "
-        "LiveKit + Cartesia keys in .env, then `uv run python voice/agent.py dev`."
+        "LIVEKIT_URL/API_KEY/API_SECRET in .env, then `uv run python voice/agent.py dev`."
     ) from e
 
-INSTRUCTIONS = (
-    "You are an AI finance explainer: a calm analyst who explains why a decision was "
-    "made or what a report shows. You are READ-ONLY — you can never approve, pay, "
-    "release, or post anything; if asked to, refuse and say the write goes through the "
-    "system's gateway under a human's identity, and a spoken 'yes' is never an approval. "
-    "Never state a number the data did not return. Keep sentences short."
-)
+# per-scene pacing (seconds) so captions + canvas build in step with speech
+SCENE_PACING = float(os.environ.get("EXPLAIN_SCENE_PACING", "3.2"))
+
+
+def _say_writer():
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        return None
+    return make_anthropic_say_writer(key, os.environ.get("PITWALL_AGENT_MODEL", "claude-sonnet-4-6"))
 
 
 def _resolve_request(subject: str, as_of: str | None) -> dict:
@@ -69,49 +69,49 @@ def _resolve_request(subject: str, as_of: str | None) -> dict:
         return planmod.build_plan(subject, as_of=datetime.fromisoformat(as_of) if as_of else None)
     import explainer
 
-    sample = Path(explainer.__file__).parent / "samples" / "acme-close-2026-03.json"
-    return json.loads(sample.read_text())
+    return json.loads((Path(explainer.__file__).parent / "samples" / "acme-close-2026-03.json").read_text())
 
 
-class Explainer(Agent):
-    def __init__(self) -> None:
-        super().__init__(instructions=INSTRUCTIONS)
+async def _publish(room, topic: str, obj: dict) -> None:
+    await room.local_participant.publish_data(
+        payload=json.dumps(obj).encode("utf-8"), topic=topic, reliable=True)
 
 
-async def _play(session: AgentSession, room, subject: str, as_of: str | None) -> None:
-    request = _resolve_request(subject, as_of)
-    sw = (make_anthropic_say_writer(os.environ.get("ANTHROPIC_API_KEY"),
-                                    os.environ.get("PITWALL_AGENT_MODEL", "claude-sonnet-4-6"))
-          if os.environ.get("ANTHROPIC_API_KEY") else None)
-    plan = engine.build_plan(request, say_writer=sw)
-    for scene in plan["scenes"]:
-        await room.local_participant.publish_data(
-            json.dumps(scene["ui"]).encode(), reliable=True, topic="ui")
-        await session.say(scene["say"], allow_interruptions=True)  # the validated sentence
-
-
-server = AgentServer()
-
-
-@server.rtc_session(agent_name="pitwall-explainer")
-async def entrypoint(ctx: agents.JobContext) -> None:
-    meta = {}
+async def _handle_explain(room, payload: dict) -> None:
+    request_id = payload.get("requestId", "req")
+    subject = payload.get("subject", "acme-close-2026-03")
+    as_of = payload.get("as_of")
     try:
-        meta = json.loads(ctx.room.metadata or "{}")
-    except json.JSONDecodeError:
-        pass
-    subject = meta.get("subject", "acme-close-2026-03")
-    as_of = meta.get("as_of")
+        await _publish(room, "lk.explain-processing", {"requestId": request_id, "status": "processing"})
+        request = _resolve_request(subject, as_of)
+        plan = engine.build_plan(request, say_writer=_say_writer())
+        await _publish(room, "lk.explain-plan", {"requestId": request_id, "plan": plan})
+        # stream scenes paced, so the canvas builds live (the frontend may also speak each say)
+        total = len(plan["scenes"])
+        for i, scene in enumerate(plan["scenes"]):
+            await _publish(room, "lk.explain-scene",
+                           {"requestId": request_id, "index": i, "total": total, "scene": scene})
+            await asyncio.sleep(SCENE_PACING)
+    except Exception as e:  # noqa: BLE001 — report back, never crash the worker
+        await _publish(room, "lk.explain-error", {"requestId": request_id, "error": str(e)})
 
-    session = AgentSession(
-        stt=inference.STT(model="assemblyai/universal-streaming", language="en"),
-        tts=cartesia.TTS(model="sonic-3", voice="f786b574-daa5-4673-aa0c-cbe3e8534c02"),
-        turn_handling=inference.TurnHandlingOptions(turn_detection=inference.TurnDetector()),
-        use_tts_aligned_transcript=True,
-    )
-    await session.start(room=ctx.room, agent=Explainer(), room_options=room_io.RoomOptions())
-    await _play(session, ctx.room, subject, as_of)
+
+async def entrypoint(ctx: JobContext) -> None:
+    print(f"🧾 Explainer agent — room: {ctx.room.name}  source: {os.environ.get('EXPLAIN_SOURCE', 'sample')}")
+
+    def on_data_received(data: rtc.DataPacket) -> None:
+        if data.topic == "lk.explain-request":
+            try:
+                payload = json.loads(data.data.decode("utf-8"))
+            except json.JSONDecodeError:
+                return
+            asyncio.create_task(_handle_explain(ctx.room, payload))
+
+    # register BEFORE connecting so we don't miss early requests
+    ctx.room.on("data_received", on_data_received)
+    await ctx.connect(auto_subscribe=agents.AutoSubscribe.SUBSCRIBE_NONE)
+    print("✅ connected — waiting for lk.explain-request …")
 
 
 if __name__ == "__main__":
-    agents.cli.run_app(server)
+    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))

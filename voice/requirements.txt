@@ -1,9 +1,13 @@
-# Voice stack (M7) — install only when you have LiveKit + Cartesia keys:
+# Explainer LiveKit agent (classic worker, data-channel) — matches the proven
+# wiring in Steve-Dusty/virtualhelper. The agent uses only livekit-agents core
+# (JobContext / WorkerOptions / cli.run_app / room data channel).
 #   uv pip install -r voice/requirements.txt
-# The offline explainer (`pitwall explain plan`) and voice/replay.html need none of this.
-livekit-agents[cartesia]~=1.8
-livekit-plugins-anthropic
-livekit-api
-fastapi>=0.110
-uvicorn>=0.29
-python-dotenv>=1.0
+livekit>=1.0.0
+livekit-agents>=0.8.0
+python-dotenv>=1.0.0
+
+# Optional — only if you move speech synthesis server-side (else the frontend
+# speaks each scene via the browser / Cartesia):
+# livekit-plugins-cartesia
+
+# The token backend is Node (see backend/):  cd backend && npm install && npm start
