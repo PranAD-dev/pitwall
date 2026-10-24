@@ -18,6 +18,9 @@ GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA work TO gateway;
 GRANT INSERT ON golden.journal_entry TO gateway;
 GRANT UPDATE (status, paid_txn_id) ON golden.installment TO gateway;
 GRANT INSERT, UPDATE ON golden.invoice TO gateway;
+-- the gateway materializes work from bank receipts and tracks its own sync cursor
+GRANT USAGE ON SCHEMA raw TO gateway;
+GRANT SELECT, INSERT, UPDATE ON raw.sync_cursor TO gateway;
 
 -- ---- sync: writes the pipeline (raw -> golden) ----------------------------
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA raw    TO sync;

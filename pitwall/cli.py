@@ -11,12 +11,14 @@ demo_app = typer.Typer(no_args_is_help=True, help="scripted demo scenarios")
 eval_app = typer.Typer(no_args_is_help=True, help="score Pit Wall vs the answer key")
 explain_app = typer.Typer(no_args_is_help=True, help="grounded narrated explanations (voice)")
 voice_app = typer.Typer(no_args_is_help=True, help="LiveKit + Cartesia voice agent")
+sow_app = typer.Typer(no_args_is_help=True, help="System of Work — gateway, roles, state machine")
 app.add_typer(db_app, name="db")
 app.add_typer(world_app, name="world")
 app.add_typer(demo_app, name="demo")
 app.add_typer(eval_app, name="eval")
 app.add_typer(explain_app, name="explain")
 app.add_typer(voice_app, name="voice")
+app.add_typer(sow_app, name="sow")
 
 
 @db_app.command("migrate")
@@ -229,6 +231,102 @@ def voice_agent() -> None:
         raise typer.Exit(1)
     typer.secho("launch via the LiveKit worker entrypoint:  "
                 "uv run python voice/agent.py dev", fg="green")
+
+
+@sow_app.command("sync")
+def sow_sync() -> None:
+    """Build 1: create a work item per unreconciled incoming bank line (idempotent)."""
+    from .sow.sync import sync_bank_receipts
+
+    created = sync_bank_receipts()
+    if created:
+        typer.secho(f"created {len(created)} work items:", fg="green")
+        for wi in created:
+            typer.echo(f"  {wi}")
+    else:
+        typer.secho("no new receipts to sync (cursor already caught up)", fg="bright_black")
+
+
+@sow_app.command("audit")
+def sow_audit(subject: str = typer.Argument(..., help="work item id, e.g. WI-5602")) -> None:
+    """Build 4: 'why?' is one query — the append-only trail, denied attempts too."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from .sow.gateway import audit_trail
+
+    rows = audit_trail(subject)
+    t = Table(title=f"audit_log — {subject}")
+    t.add_column("at"); t.add_column("actor", style="cyan"); t.add_column("action")
+    t.add_column("ok", justify="center"); t.add_column("reason")
+    for r in rows:
+        ok = "[green]✓[/]" if r["allowed"] else "[red]✗[/]"
+        diff = r["diff"] or {}
+        st = diff.get("state")
+        change = f" [{st['from']}→{st['to']}]" if st else ""
+        t.add_row(str(r["at"])[:19], r["actor"], r["action"] + change, ok, (r["reason"] or "")[:52])
+    Console().print(t)
+
+
+@sow_app.command("walk")
+def sow_walk() -> None:
+    """Demo the whole spine on one work item: NEW → PROPOSED → APPROVED → POSTED,
+    with a separation-of-duties DENIAL logged along the way. No keys needed."""
+    from rich.console import Console
+
+    from .sow import gateway
+    from .sow.roles import Actor, GATEWAY
+    from .sow.sync import sync_bank_receipts
+    from .sow.transitions import Denied
+
+    c = Console()
+    agent = Actor("ai_agent", "ai_agent")
+    priya = Actor("accountant:priya", "human_accountant")
+
+    c.print("[bold]Build 1 · sync[/] — a bank line becomes a work item")
+    created = sync_bank_receipts()
+    if not created:
+        # reuse an existing NEW receipt item if the cursor is caught up
+        conn_items = gateway.connect("gateway")
+        with conn_items.cursor() as cur:
+            cur.execute("SELECT id FROM work.work_item WHERE kind='reconcile_receipt' AND state='NEW' LIMIT 1")
+            row = cur.fetchone()
+        conn_items.close()
+        if not row:
+            c.print("[yellow]no NEW receipt work item available — run `make reset` then retry[/]")
+            raise typer.Exit(1)
+        wi = row[0]
+    else:
+        wi = created[0]
+    c.print(f"  work item: [cyan]{wi}[/]\n")
+
+    c.print("[bold]Build 3 · the agent proposes[/] (ai_agent · propose)")
+    gateway.transition(agent, wi, "propose",
+                       patch={"proposed_by": "ai_agent",
+                              "proposal": {"action": "match", "note": "memo matches one invoice; "
+                                           "gap within tolerance"}},
+                       reason="pol-001: gap within tolerance")
+    c.print("  → PROPOSED\n")
+
+    c.print("[bold]Build 2 · separation of duties[/] (ai_agent tries to approve its own proposal)")
+    try:
+        gateway.transition(agent, wi, "approve", reason="self-approve attempt")
+    except Denied as e:
+        c.print(f"  [red]DENIED[/] — {e.why}  [dim](logged as allowed=false)[/]\n")
+
+    c.print("[bold]a human approves[/] (human_accountant · approve)")
+    gateway.transition(priya, wi, "approve", patch={"approved_by": "accountant:priya"},
+                       reason="match confirmed")
+    c.print("  → APPROVED\n")
+
+    c.print("[bold]Build 4 · only the gateway posts[/] (gateway · post → record)")
+    gateway.post(GATEWAY, wi,
+                 journal_lines=[{"account": "1000 Cash", "debit": 0, "credit": 0, "memo": "receipt matched"}],
+                 reason="posted to ledger")
+    c.print("  → POSTED  [dim](journal entry written by gateway)[/]\n")
+
+    c.print("[bold]'why?' is one query:[/]")
+    sow_audit(wi)
 
 
 if __name__ == "__main__":
