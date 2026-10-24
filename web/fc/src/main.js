@@ -15,6 +15,8 @@ import { createCommentary } from './commentary.js';
 import { createAudio } from './audio.js';
 import { PILLAR_KEYS, createPillar } from './pillars.js';
 import { TCOL, createTerminal } from './terminal.js';
+import { createReporter } from './reporter.js';
+import { createLiveReport } from './livereport.js';
 
 const params = new URLSearchParams(location.search);
 const SEED = parseInt(params.get('seed') || '7', 10);
@@ -162,7 +164,8 @@ function buildNavUI() {
   document.head.appendChild(style);
   const bar = document.createElement('div');
   bar.id = 'pwnav';
-  bar.innerHTML = '<button id="pw-term">⌨ SCENARIO</button><button id="pw-view">◎ VIEW BOARD</button>' +
+  bar.innerHTML = '<button id="pw-term">⌨ SCENARIO</button><button id="pw-report">📺 REPORT</button>' +
+    '<button id="pw-view">◎ VIEW BOARD</button>' +
     '<button id="pw-prev">←</button><span id="pw-label">OVERVIEW</span><button id="pw-next">→</button>' +
     '<button id="pw-over">⤢ OVERVIEW</button><button id="pw-full" title="fullscreen">⛶</button>';
   document.body.appendChild(bar);
@@ -172,7 +175,8 @@ function buildNavUI() {
   document.getElementById('pw-prev').addEventListener('click', () => { focusBoard(cur() - 1); hideMenu(); });
   document.getElementById('pw-next').addEventListener('click', () => { focusBoard(cur() + 1); hideMenu(); });
   document.getElementById('pw-term').addEventListener('click', activateTerminal);
-  document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); if (window.__pwShowMenu) window.__pwShowMenu(); });
+  document.getElementById('pw-report').addEventListener('click', activateReport);
+  document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); deactivateReport(); if (window.__pwShowMenu) window.__pwShowMenu(); });
   document.getElementById('pw-full').addEventListener('click', () => {
     const d = document.documentElement;
     if (document.fullscreenElement) document.exitFullscreen();
@@ -202,6 +206,27 @@ function deactivateTerminal() {
 }
 window.__pwDeactivateTerm = deactivateTerminal;
 window.__pwActivateTerm = activateTerminal;   // menu "Control room" tile flies here
+
+// --- a SECOND, parallel agent: the LiveKit finance-report on its own billboard ---
+let reporter = null, reportPlayer = null, reportActive = false;
+const REPORT_SCREEN = 1;   // a different big screen from the terminal → two agents, live at once
+function activateReport() {
+  if (!reporter) return;
+  const m = scene.getObjectByName('big_screen_' + REPORT_SCREEN);
+  if (m) { m.material.map = reporter.texture; m.material.needsUpdate = true; }
+  reportActive = true;
+  focusBoard(REPORT_SCREEN, true);
+  if (window.__pwHideMenu) window.__pwHideMenu();
+  reportPlayer.start('WI-5602');   // the fraud-hold decision, narrated + grounded
+}
+function deactivateReport() {
+  const m = scene.getObjectByName('big_screen_' + REPORT_SCREEN);
+  if (m && pillars[REPORT_SCREEN]) { m.material.map = pillars[REPORT_SCREEN].texture; m.material.needsUpdate = true; }
+  reportActive = false;
+  if (reportPlayer) reportPlayer.stop();
+}
+window.__pwActivateReport = activateReport;
+window.__pwDeactivateReport = deactivateReport;
 window.__pwRunTerm = function (text) {
   if (!termActive) activateTerminal();
   terminal.clear();
@@ -241,6 +266,8 @@ function setupField() {
     pillars.push(p);
   }
   terminal = createTerminal(1024);   // ready to take over a screen on ⌨ SCENARIO
+  reporter = createReporter(1280);   // the finance-report billboard (📺 REPORT)
+  reportPlayer = createLiveReport({ reporter });
   // intro framing: the exact angle you picked (press "p" to re-capture)
   nav.dx = nav.tx = 44; nav.dy = nav.ty = 3; nav.dz = nav.tz = 0;
   nav.taz = nav.az = -1.592; nav.tpol = nav.pol = 0.233; nav.tr = nav.r = 96.2;
@@ -265,7 +292,7 @@ function frameUpdate(dt) {
   lighting.update(dt);
   if (stadium.update) stadium.update(dt);
   if (pitch.update) pitch.update(dt, match.state);
-  if (FIELD) { updateNav(dt); for (const p of pillars) p.update(dt); if (terminal && termActive) terminal.update(dt); } else rig.update(dt);
+  if (FIELD) { updateNav(dt); for (const p of pillars) p.update(dt); if (terminal && termActive) terminal.update(dt); if (reporter && reportActive) reporter.update(dt); } else rig.update(dt);
   if (!FIELD) hud.update(dt);
   if (!FIELD) commentary.update(dt); // no voicelines on the empty field
   if (!FIELD) audio.update(dt, ex);  // and no crowd audio

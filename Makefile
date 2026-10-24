@@ -56,6 +56,10 @@ explain: env ## Build + play the fraud-hold explanation, export the browser plan
 fc: env ## Run the scenario control room (backend + live trail UI) at :4055
 	$(UV) run uvicorn api.app:app --port 4055 --reload
 
+voice: env ## Run the LiveKit finance-report agent (the 📺 REPORT billboard). Needs voice deps + LIVEKIT_* in .env
+	$(UV) pip install -r voice/requirements.txt
+	EXPLAIN_SOURCE=pitwall $(UV) run python voice/agent.py dev
+
 demo: env ## Run the scripted demo scenario (final whistle cascade)
 	$(UV) run pitwall demo run
 

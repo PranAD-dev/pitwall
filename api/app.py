@@ -322,6 +322,33 @@ async def scenario_stream(text: str) -> StreamingResponse:
 
 
 # --------------------------------------------------------------------------- #
+# LiveKit — mint a join token so the stadium can host the report agent on a billboard.
+# Returns {"error": ...} (not 503) when voice isn't configured so the frontend can
+# fall back to the HTTP report (/api/explain/{wi}) cleanly.
+# --------------------------------------------------------------------------- #
+@app.get("/api/livekit/token")
+def livekit_token(room: str = "pitwall-report", identity: str = "stadium") -> dict:
+    from pitwall.config import get_settings
+
+    s = get_settings()
+    if not (s.livekit_url and s.livekit_api_key and s.livekit_api_secret):
+        return {"error": "livekit-not-configured"}
+    try:
+        from livekit import api
+
+        jwt = (
+            api.AccessToken(s.livekit_api_key, s.livekit_api_secret)
+            .with_identity(identity)
+            .with_name(identity)
+            .with_grants(api.VideoGrants(room_join=True, room=room))
+            .to_jwt()
+        )
+        return {"token": jwt, "url": s.livekit_url, "room": room}
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
+# --------------------------------------------------------------------------- #
 # Serve the frontend
 # --------------------------------------------------------------------------- #
 @app.get("/")
