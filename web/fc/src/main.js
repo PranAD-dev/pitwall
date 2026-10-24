@@ -101,6 +101,14 @@ function initNav() {
     e.preventDefault();
     nav.tr = Math.min(260, Math.max(8, nav.tr * (1 + Math.sign(e.deltaY) * 0.08)));
   }, { passive: false });
+  // press "p" to print the current camera — orbit to the angle you want, hit p,
+  // read the console, and tell me the numbers to lock it in.
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'p' || e.key === 'P') {
+      console.log(`[camera] az=${nav.az.toFixed(3)} pol=${nav.pol.toFixed(3)} r=${nav.r.toFixed(1)} `
+        + `target=(${nav.tx.toFixed(1)}, ${nav.ty.toFixed(1)}, ${nav.tz.toFixed(1)})`);
+    }
+  });
 }
 function updateNav(dt) {
   const k = 1 - Math.exp(-3.5 * dt);                // smooth glide toward the desired pose
@@ -164,8 +172,14 @@ function buildNavUI() {
 }
 let pillars = [];
 function setupField() {
-  for (const p of teams.players) p.group.visible = false; // remove all 22 players + referee
-  if (ball.mesh) ball.mesh.visible = false;               // and the ball
+  // only a GK + 2 DF + 2 FW (home) play in the background; hide everyone else
+  const show = new Set();
+  const gk = teams.home.find((p) => p.role === 'GK');
+  if (gk) show.add(gk);
+  teams.home.filter((p) => p.role === 'DF').slice(0, 2).forEach((p) => show.add(p));
+  teams.home.filter((p) => p.role === 'FW').slice(0, 2).forEach((p) => show.add(p));
+  for (const p of teams.players) p.group.visible = show.has(p);
+  // the ball stays — there's a game on behind the menu
   const hudEl = document.getElementById('hud');
   if (hudEl) hudEl.style.display = 'none';                // no scoreboard overlay
   // A DIFFERENT Pit Wall pillar on each big LED screen, live from :4055
@@ -179,9 +193,9 @@ function setupField() {
     mesh.material.needsUpdate = true;
     pillars.push(p);
   }
-  // intro framing: camera facing the goal (the landing menu overlays this)
-  nav.dx = nav.tx = 48; nav.dy = nav.ty = 2.5; nav.dz = nav.tz = 0;
-  nav.taz = nav.az = -Math.PI / 2; nav.tpol = nav.pol = 0.12; nav.tr = nav.r = 34;
+  // intro framing: camera facing the goal, wide enough to see the play (menu overlays this)
+  nav.dx = nav.tx = 44; nav.dy = nav.ty = 3; nav.dz = nav.tz = 0;
+  nav.taz = nav.az = -Math.PI / 2; nav.tpol = nav.pol = 0.17; nav.tr = nav.r = 52;
   initNav();
   buildNavUI();
 }
@@ -189,7 +203,8 @@ if (FIELD) setupField();
 
 // --- Loop -------------------------------------------------------------------
 function simTick(dt) {
-  if (FIELD) return; // empty pitch: nothing to simulate
+  // run the match in both modes — in field mode only a few players are visible,
+  // but the sim drives them so they actually play behind the menu.
   match.setUserInput(input.sample());
   match.update(dt);
   teams.update(dt);
