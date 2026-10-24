@@ -193,9 +193,9 @@ function setupField() {
     mesh.material.needsUpdate = true;
     pillars.push(p);
   }
-  // intro framing: camera facing the goal, wide enough to see the play (menu overlays this)
+  // intro framing: the exact angle you picked (press "p" to re-capture)
   nav.dx = nav.tx = 44; nav.dy = nav.ty = 3; nav.dz = nav.tz = 0;
-  nav.taz = nav.az = -Math.PI / 2; nav.tpol = nav.pol = 0.17; nav.tr = nav.r = 52;
+  nav.taz = nav.az = -1.592; nav.tpol = nav.pol = 0.233; nav.tr = nav.r = 96.2;
   initNav();
   buildNavUI();
 }
