@@ -14,6 +14,7 @@ import { createPostFX } from './postfx.js';
 import { createCommentary } from './commentary.js';
 import { createAudio } from './audio.js';
 import { PILLAR_KEYS, createPillar } from './pillars.js';
+import { TCOL, createTerminal } from './terminal.js';
 
 const params = new URLSearchParams(location.search);
 const SEED = parseInt(params.get('seed') || '7', 10);
@@ -160,7 +161,7 @@ function buildNavUI() {
   document.head.appendChild(style);
   const bar = document.createElement('div');
   bar.id = 'pwnav';
-  bar.innerHTML = '<button id="pw-view">◎ VIEW BOARD</button>' +
+  bar.innerHTML = '<button id="pw-term">⌨ SCENARIO</button><button id="pw-view">◎ VIEW BOARD</button>' +
     '<button id="pw-prev">←</button><span id="pw-label">OVERVIEW</span><button id="pw-next">→</button>' +
     '<button id="pw-over">⤢ OVERVIEW</button>';
   document.body.appendChild(bar);
@@ -169,9 +170,52 @@ function buildNavUI() {
   document.getElementById('pw-view').addEventListener('click', () => { focusBoard(cur()); hideMenu(); });
   document.getElementById('pw-prev').addEventListener('click', () => { focusBoard(cur() - 1); hideMenu(); });
   document.getElementById('pw-next').addEventListener('click', () => { focusBoard(cur() + 1); hideMenu(); });
-  document.getElementById('pw-over').addEventListener('click', () => { overview(); if (window.__pwShowMenu) window.__pwShowMenu(); });
+  document.getElementById('pw-term').addEventListener('click', activateTerminal);
+  document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); if (window.__pwShowMenu) window.__pwShowMenu(); });
 }
 let pillars = [];
+let terminal = null, termActive = false;
+const TERM_SCREEN = 0;   // which big screen becomes the terminal
+
+function activateTerminal() {
+  if (!terminal) return;
+  const m = scene.getObjectByName('big_screen_' + TERM_SCREEN);
+  if (m) { m.material.map = terminal.texture; m.material.needsUpdate = true; }
+  termActive = true;
+  focusBoard(TERM_SCREEN);
+  if (window.__pwHideMenu) window.__pwHideMenu();
+  if (window.__pwShowTermBar) window.__pwShowTermBar();
+  terminal.clear();
+  terminal.write('type a scenario below and press enter  ▸', TCOL.DIM);
+}
+function deactivateTerminal() {
+  const m = scene.getObjectByName('big_screen_' + TERM_SCREEN);
+  if (m && pillars[TERM_SCREEN]) { m.material.map = pillars[TERM_SCREEN].texture; m.material.needsUpdate = true; }
+  termActive = false;
+  if (window.__pwHideTermBar) window.__pwHideTermBar();
+}
+window.__pwDeactivateTerm = deactivateTerminal;
+window.__pwRunTerm = function (text) {
+  if (!termActive) activateTerminal();
+  terminal.clear();
+  terminal.write('> ' + text, TCOL.WHITE);
+  const es = new EventSource('/api/scenario/stream?text=' + encodeURIComponent(text));
+  es.onmessage = (e) => {
+    const s = JSON.parse(e.data), k = s.kind;
+    if (k === 'think') { terminal.write('ai_agent think', TCOL.VOLT); terminal.write('  ' + s.text, TCOL.WHITE); }
+    else if (k === 'run_sql') { terminal.write('ai_agent run_sql', TCOL.VOLT); terminal.write('  ' + s.text, TCOL.AMBER); }
+    else if (k === 'sql_result') { const d = s.data || {}; terminal.write('  ◂ ' + (d.error ? d.error : ((d.rows || []).length + ' rows')), TCOL.DIM); }
+    else if (k === 'propose') { const d = s.data || {}; terminal.write('ai_agent propose: ' + (d.situation_type || ''), TCOL.BLUE); terminal.write('  ' + s.text, TCOL.WHITE); }
+    else if (k === 'post') terminal.write('gateway ▸ ' + s.text, TCOL.VOLT);
+    else if (k === 'escalate') terminal.write('▸ ' + s.text, TCOL.AMBER);
+    else if (k === 'forecast') { const im = (s.data || {}).impact; if (im && im.line) terminal.write('forecast ▸ ' + im.line, TCOL.VOLT); }
+    else if (k === 'report') terminal.write('report ▸ ' + s.text, TCOL.WHITE);
+    else if (k === 'error') terminal.write('✗ ' + s.text, TCOL.RED);
+    else if (k === 'done') es.close();
+  };
+  es.onerror = () => { es.close(); terminal.write('(backend offline — run make fc)', TCOL.RED); };
+};
+
 function setupField() {
   // full match playing in the background (all 22 + referee)
   for (const p of teams.players) p.group.visible = true;
@@ -189,6 +233,7 @@ function setupField() {
     mesh.material.needsUpdate = true;
     pillars.push(p);
   }
+  terminal = createTerminal(1024);   // ready to take over a screen on ⌨ SCENARIO
   // intro framing: the exact angle you picked (press "p" to re-capture)
   nav.dx = nav.tx = 44; nav.dy = nav.ty = 3; nav.dz = nav.tz = 0;
   nav.taz = nav.az = -1.592; nav.tpol = nav.pol = 0.233; nav.tr = nav.r = 96.2;
@@ -213,7 +258,7 @@ function frameUpdate(dt) {
   lighting.update(dt);
   if (stadium.update) stadium.update(dt);
   if (pitch.update) pitch.update(dt, match.state);
-  if (FIELD) { updateNav(dt); for (const p of pillars) p.update(dt); } else rig.update(dt);
+  if (FIELD) { updateNav(dt); for (const p of pillars) p.update(dt); if (terminal && termActive) terminal.update(dt); } else rig.update(dt);
   if (!FIELD) hud.update(dt);
   if (!FIELD) commentary.update(dt); // no voicelines on the empty field
   if (!FIELD) audio.update(dt, ex);  // and no crowd audio
