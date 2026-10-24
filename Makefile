@@ -41,9 +41,13 @@ generate: env ## Generate the deterministic world + answer_key.json
 seed: env ## Seed demo work items the explainer narrates (fraud hold, add-on reject)
 	$(UV) run pitwall explain seed-demo
 
-reset: env nuke up wait-db migrate generate seed ## FULL reset: wipe, start, migrate, world, seed
+reset: env nuke up wait-db migrate generate seed ## FULL reset: wipe, start, migrate, world, seed (LOCAL docker)
 	@echo ""
 	@echo "world reset complete — $$(date)"
+
+cloud-reset: env migrate generate seed ## Migrate + load world + seed against PITWALL_DATABASE_URL (no docker)
+	@echo ""
+	@echo "cloud reset complete — targeting PITWALL_DATABASE_URL"
 
 explain: env ## Build + play the fraud-hold explanation, export the browser plan
 	$(UV) run pitwall explain plan WI-5602

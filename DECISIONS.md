@@ -8,6 +8,18 @@ Running log of defaults chosen without blocking the user, per the build prompt
 
 ---
 
+### D-011 — 2026-10-23 — Running on Tiger Cloud (hosted Postgres+TimescaleDB)
+`PITWALL_DATABASE_URL` points at a Tiger Cloud service (PostgreSQL 18.6, timescaledb
++ timescaledb_toolkit). Migrations run as `tsdbadmin`; the app connects as the
+least-privilege roles (userinfo swapped, `sslmode=require` preserved). Verified: full
+schema + 24mo world + demo items loaded, `sow walk` works, DB limits hold over SSL.
+**Why:** survives restarts, shareable with teammates, and it's the MLH Tiger Data
+prize surface. Local docker still works — comment the URL out to use it.
+**Cloud commands:** `make cloud-reset` (migrate+generate+seed, no docker); NOT
+`make reset` (that spins up local docker). Gotcha seen: fresh service DNS has a
+negative-cache window (~45s) — retry if first connect says "failed to resolve host".
+The URL is a live credential, in gitignored `.env` only; rotate after the hackathon.
+
 ### D-010 — 2026-10-23 — Fully-simulated mode is the default, keys are adapters
 We have no API keys yet, so every external dependency is a pluggable adapter with
 a mock implementation selected by env flags: `PITWALL_LLM_MODE=auto` (mock LLM when
