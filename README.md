@@ -54,6 +54,37 @@ No API keys required — everything above runs in fully-simulated mode. Drop key
 into `.env` to upgrade the LLM, x402 settlement, or voice. See
 [`DECISIONS.md`](./DECISIONS.md) for every default chosen and why.
 
+## The demo — the scenario control room
+
+```bash
+make fc                 # FastAPI backend + control-room UI at http://localhost:4055
+```
+
+Open **http://localhost:4055**, type a finance situation (or hit a preset), and watch
+the agent work it live — the exact loop from the Hyphenate deck (slide 12):
+
+1. **think → run_sql** — it recalls 12 months of precedents and locates the real
+   golden rows (Claude `opus-4-8` perceives + narrates; it has *read-only* SQL only).
+2. **propose → gate** — it proposes a classification; **code decides** — the
+   hard-check gate (`pitwall/agent/detectors.py`) makes the call, so precision holds.
+3. **post** — the Gateway posts the transition (the one writer) → a verdict card.
+4. **forecast** — the decision ripples into the 5th system (deck slide 7):
+   *"protected €2.75M of next-quarter cash from a fraudulent payee."*
+5. **audit** — every transition as an append-only diff; *"why? is one query."*
+6. **report** — a grounded, spoken report (▶ Speak) of what it did and why.
+
+Side panels show the **forecast** (cash pipeline + squad-cost gauge) and the agent's
+**memory** — the policies it **learned** at onboarding and **self-improved** from
+corrections, with the one the current decision used highlighted.
+
+Prefer the terminal?
+```bash
+uv run pitwall agent scenario "a lookalike-domain email asks us to pay the next installment to a new IBAN"
+uv run pitwall eval run         # 21/21 planted issues · 100% precision · 0 violations
+uv run pitwall agent onboard    # self-learning: mine history → draft policies
+uv run pitwall agent improve    # self-improving: corrections → a generalized policy
+```
+
 ## Repo layout
 
 ```
@@ -70,5 +101,9 @@ docs/      RESULTS.md, TIGER_PERF.md, COINBASE_FEEDBACK.md
 
 ## Status
 
-Milestone progress is tracked in the build. Current: **M0 — schema, roles, world
-generator, answer key, `make reset`.**
+- **System of Work** — sync → work-item state machine → gateway → append-only audit: **real** (deck builds 1–4).
+- **Self-learning + self-improving** — `agent onboard` / `agent improve`; policies are the agent's memory in the DB (learned + generalized from precedents).
+- **The scenario control room** — free-text → live `think → run_sql → propose → gate → post → audit → forecast → report` (Claude `opus-4-8` perceives; **code decides**).
+- **Forecast** — the 5th system; every post ripples into projected cash + squad-cost with per-decision impact attribution.
+- **Eval** — `make eval` → **21/21** planted issues, **100%** precision on auto-completes, **0** must-not-auto-complete violations (`docs/RESULTS.md`).
+- **Stretch:** LiveKit video report (browser Web-Speech covers the spoken report today), x402 testnet settlement (CDP creds wired, sellers service pending).
