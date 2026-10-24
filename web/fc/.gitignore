@@ -1,0 +1,10 @@
+# Runtime deps are vendored into vendor/three — node_modules is only needed
+# for the headless screenshot/perf tooling.
+node_modules/
+
+# Generated review artefacts
+shots/
+package-lock.json
+
+.DS_Store
+*.log

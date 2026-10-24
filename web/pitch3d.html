@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pran FC — pitch</title>
+<style>
+  html,body{margin:0;height:100%;background:#05080c;overflow:hidden;}
+  #credit{position:fixed;left:10px;bottom:8px;z-index:5;font:11px/1.4 ui-monospace,monospace;
+    color:rgba(255,255,255,.4);max-width:360px;}
+  #credit a{color:rgba(198,255,46,.6);text-decoration:none;}
+  #hint{position:fixed;right:12px;bottom:10px;z-index:5;font:11px ui-monospace,monospace;color:rgba(255,255,255,.3);}
+  #ctrl{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);z-index:8;display:none;gap:8px;}
+  #ctrl button{font:12px ui-monospace,monospace;color:#c6ff2e;background:rgba(0,0,0,.55);
+    border:1px solid rgba(198,255,46,.35);border-radius:7px;padding:7px 15px;cursor:pointer;
+    letter-spacing:.04em;transition:all .12s;}
+  #ctrl button:hover{background:rgba(198,255,46,.14);border-color:rgba(198,255,46,.75);}
+  #ctrl button.on{background:rgba(198,255,46,.22);border-color:#c6ff2e;}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.149.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.149.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="status" style="position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9;
+  font:13px ui-monospace,monospace;color:#c6ff2e;background:rgba(0,0,0,.6);padding:7px 14px;border-radius:8px;">booting…</div>
+<script>
+  const setStatus=(m,err)=>{const s=document.getElementById('status');if(s){s.style.color=err?'#ff5564':'#c6ff2e';s.textContent=m;}};
+  addEventListener('error',e=>setStatus('ERROR: '+(e.message||e.filename||e),true));
+  addEventListener('unhandledrejection',e=>setStatus('LOAD ERROR: '+((e.reason&&e.reason.message)||e.reason),true));
+</script>
+<div id="credit">Pitch: “Football Court” 3D model (Sketchfab). Add CC-BY attribution before the demo.</div>
+<div id="hint">drag to orbit · scroll to zoom</div>
+<div id="ctrl">
+  <button data-clip="idle" class="on">idle</button>
+  <button data-clip="kick">kick</button>
+  <button data-clip="celebrate">celebrate</button>
+  <button data-clip="juggle">juggle</button>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+setStatus('three.js loaded — building scene…');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05080c);
+scene.fog = new THREE.FogExp2(0x05080c, 0.0045); // light — don't grey out the far half of the pitch
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 1000);
+camera.position.set(34, 26, 40);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0); controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.minDistance = 6; controls.maxDistance = 160; controls.maxPolarAngle = Math.PI * 0.49; // can't dip under the pitch
+
+// ---- lighting (floodlit night — neutral, lets the pitch keep its own colour) ----
+scene.add(new THREE.HemisphereLight(0xbfd4e4, 0x3b4a3a, 1.0));
+const key = new THREE.DirectionalLight(0xffffff, 2.4);
+key.position.set(22, 42, 18); key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048); key.shadow.camera.near = 1; key.shadow.camera.far = 160;
+key.shadow.camera.left = -40; key.shadow.camera.right = 40; key.shadow.camera.top = 40; key.shadow.camera.bottom = -40;
+key.shadow.bias = -0.0004; scene.add(key);
+const fill = new THREE.DirectionalLight(0xdfe8ff, 0.6); fill.position.set(-24, 18, -12); scene.add(fill);
+
+renderer.render(scene, camera);
+
+// ---- player (Hugo Sanchez — rigged humanoid, animated procedurally) ----
+const clock = new THREE.Clock();
+let player = null;
+const bones = {};                          // name -> { obj, rest(Quaternion) }
+const anim = { clip: 'idle', start: 0 };   // active clip + the time it began
+
+// Axis/sign tuning — flip a value if a limb bends the wrong way (I'm guessing bone axes blind).
+const S = { kickLeg: 1, knee: 1, armRaise: 1 };
+const ARM_REST = 0.6;   // how far arms hang at the sides by default (bigger = tighter to body; negate if they tuck the wrong way)
+
+const _e = new THREE.Euler(), _q = new THREE.Quaternion();
+function pose(name, x, y, z) {              // rotate a bone relative to its rest pose
+  const b = bones[name]; if (!b) return;
+  _q.setFromEuler(_e.set(x || 0, y || 0, z || 0));
+  b.obj.quaternion.copy(b.rest).multiply(_q);
+}
+
+// ---- clips (each writes bone offsets for time t / progress p) ----
+function idle(t, amp = 1) {
+  pose('Spine',  Math.sin(t * 1.4) * 0.015 * amp, 0, 0);
+  pose('Spine2', Math.sin(t * 1.4) * 0.015 * amp, 0, 0);
+  pose('Neck',   Math.sin(t * 1.4) * 0.010 * amp, Math.sin(t * 0.6) * 0.03 * amp, 0);
+  pose('Head',   0, Math.sin(t * 0.5) * 0.05 * amp, 0);
+  pose('LeftArm',  0, 0,  Math.sin(t * 1.4) * 0.03 * amp);
+  pose('RightArm', 0, 0, -Math.sin(t * 1.4) * 0.03 * amp);
+  pose('LeftForeArm',  Math.sin(t * 1.4 + 0.5) * 0.03 * amp, 0, 0);
+  pose('RightForeArm', Math.sin(t * 1.4 + 0.5) * 0.03 * amp, 0, 0);
+}
+function kick(p) {                          // right-foot strike, p in 0..1
+  const sw = p < 0.30 ? -(p / 0.30) * 0.5
+           : p < 0.55 ? (-0.5 + ((p - 0.30) / 0.25) * 1.6)
+           : (1.1 - ((p - 0.55) / 0.45) * 1.1);
+  pose('RightUpLeg', sw * S.kickLeg, 0, 0);
+  const knee = p < 0.30 ? (p / 0.30) * 0.6 : p < 0.55 ? (0.6 - ((p - 0.30) / 0.25) * 0.6) : 0;
+  pose('RightLeg', knee * S.knee, 0, 0);
+  pose('LeftLeg', 0.12 * S.knee, 0, 0);     // plant leg slight bend
+  const swing = Math.sin(p * Math.PI);
+  pose('Spine',  swing * 0.15, 0, 0);
+  pose('Spine2', 0, -sw * 0.15, 0);
+  pose('LeftArm',  0, 0,  swing * 0.5);
+  pose('RightArm', 0, 0, -swing * 0.3);
+}
+function celebrate(t) {                     // arms up, head back
+  pose('LeftArm',  0, 0,  1.3 * S.armRaise + Math.sin(t * 4) * 0.1);
+  pose('RightArm', 0, 0, -1.3 * S.armRaise - Math.sin(t * 4) * 0.1);
+  pose('LeftForeArm',  -0.4, 0, 0);
+  pose('RightForeArm', -0.4, 0, 0);
+  pose('Spine', -0.08, 0, 0);
+  pose('Head',  -0.15, 0, 0);
+}
+function juggle(t) {                        // alternating knee lifts (keepie-uppies)
+  const ph = Math.sin(t * 3);
+  pose('RightUpLeg', Math.max(0,  ph) * 0.9 * S.kickLeg, 0, 0);
+  pose('RightLeg',   Math.max(0,  ph) * 0.8 * S.knee, 0, 0);
+  pose('LeftUpLeg',  Math.max(0, -ph) * 0.9 * S.kickLeg, 0, 0);
+  pose('LeftLeg',    Math.max(0, -ph) * 0.8 * S.knee, 0, 0);
+  pose('LeftArm', 0, 0, 0.4); pose('RightArm', 0, 0, -0.4);
+}
+
+function drive(t) {                         // reset to rest, then apply the active clip
+  if (!player) return;
+  for (const n in bones) bones[n].obj.quaternion.copy(bones[n].rest);
+  let bob = Math.sin(t * 1.6) * 0.03;
+  switch (anim.clip) {
+    case 'kick': {
+      const p = Math.min((t - anim.start) / 0.9, 1);
+      idle(t, 0.3); kick(p);
+      if (p >= 1) { anim.clip = 'idle'; markButton('idle'); }
+      break;
+    }
+    case 'celebrate': celebrate(t); bob += Math.abs(Math.sin(t * 3)) * 0.15; break; // little hops
+    case 'juggle':    juggle(t);    bob += Math.sin(t * 3) * 0.05; break;
+    default:          idle(t);
+  }
+  player.position.y = player.userData.baseY + bob;
+}
+
+function markButton(clip) {
+  document.querySelectorAll('#ctrl button').forEach(b => b.classList.toggle('on', b.dataset.clip === clip));
+}
+window.playClip = (name) => { anim.clip = name; anim.start = clock.getElapsedTime(); markButton(name); };
+document.querySelectorAll('#ctrl button').forEach(b => b.addEventListener('click', () => window.playClip(b.dataset.clip)));
+
+function loadPlayer(ctr, sz) {
+  new GLTFLoader().load('./models/char/hugo.glb', (gltf) => {
+    player = gltf.scene;
+    player.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+    // scale to a sensible height relative to the court, feet on the ground, at the centre
+    let pb = new THREE.Box3().setFromObject(player);
+    const ph = pb.getSize(new THREE.Vector3()).y || 1;
+    const PLAYER_H = Math.max(sz.x, sz.z) / 20;         // tweak divisor if too big/small
+    player.scale.setScalar(PLAYER_H / ph);
+    pb = new THREE.Box3().setFromObject(player);
+    const pc = pb.getCenter(new THREE.Vector3());
+    player.position.set(ctr.x - pc.x, -pb.min.y, ctr.z - pc.z); // centre on circle, feet at y=0
+    player.userData.baseY = player.position.y;          // remember ground offset for the bob
+    player.rotation.y = Math.atan2(camera.position.x - ctr.x, camera.position.z - ctr.z); // face camera
+    scene.add(player);
+    // grab the bones we animate + remember their rest rotation
+    ['Hips','Spine','Spine1','Spine2','Spine3','Neck','Head',
+     'LeftUpLeg','LeftLeg','LeftFoot','LeftToeBase','RightUpLeg','RightLeg','RightFoot','RightToeBase',
+     'LeftShoulder','LeftArm','LeftForeArm','LeftHand','RightShoulder','RightArm','RightForeArm','RightHand']
+      .forEach(n => { const o = player.getObjectByName(n); if (o) bones[n] = { obj: o, rest: o.quaternion.clone() }; });
+    // bake arms-down into the resting pose so idle (and every clip) starts with arms at the sides
+    if (bones.LeftArm)  bones.LeftArm.rest.multiply(_q.setFromEuler(_e.set(0, 0, -ARM_REST * S.armRaise)));
+    if (bones.RightArm) bones.RightArm.rest.multiply(_q.setFromEuler(_e.set(0, 0,  ARM_REST * S.armRaise)));
+    document.getElementById('ctrl').style.display = 'flex';
+    console.log('player loaded — height', PLAYER_H.toFixed(2), 'units | bones:', Object.keys(bones).length);
+  }, undefined, (e) => console.error('player load failed', e));
+}
+
+// ---- load the stadium, center it on the origin, frame the whole pitch ----
+new GLTFLoader().load('./models/football_court.glb', (gltf) => {
+  const field = gltf.scene;
+  field.traverse(o => { if (o.isMesh) { o.receiveShadow = true; o.castShadow = true; } });
+  // normalise: center x/z on origin, scale so the long side ≈ 46, ground at y=0
+  let box = new THREE.Box3().setFromObject(field);
+  const size = box.getSize(new THREE.Vector3());
+  const s = 46 / Math.max(size.x, size.z); field.scale.setScalar(s);
+  box = new THREE.Box3().setFromObject(field);
+  const c = box.getCenter(new THREE.Vector3());
+  field.position.sub(new THREE.Vector3(c.x, box.min.y, c.z)); // center x/z, drop to ground
+  scene.add(field);
+
+  // hero shot: player in front of the goal, facing the camera, goal behind him
+  box = new THREE.Box3().setFromObject(field);
+  const sz = box.getSize(new THREE.Vector3());
+  const PLAYER_H = Math.max(sz.x, sz.z) / 20;
+
+  // locate the goalpost ("kale diregi" = goalpost); fall back to the near short end
+  let goal = null;
+  field.traverse(o => { if (o.isMesh && /kale|goal|post/i.test(o.name) && !goal) goal = o; });
+  const gc = goal ? new THREE.Box3().setFromObject(goal).getCenter(new THREE.Vector3()) : new THREE.Vector3();
+  const Gp = new THREE.Vector3(gc.x, 0, gc.z);
+  if (Gp.length() < Math.max(sz.x, sz.z) * 0.1) {            // no usable goal offset → use a short end
+    if (sz.x >= sz.z) Gp.set(sz.x * 0.42, 0, 0); else Gp.set(0, 0, sz.z * 0.42);
+  }
+  const toC = Gp.clone().multiplyScalar(-1).normalize();     // from goal toward pitch centre
+
+  const P = Gp.clone().addScaledVector(toC, PLAYER_H * 1.4); P.y = 0; // player just in front of the goal
+  camera.position.set(P.x + toC.x * PLAYER_H * 3.4, PLAYER_H * 1.15, P.z + toC.z * PLAYER_H * 3.4);
+  controls.target.set(P.x, PLAYER_H * 0.55, P.z);            // aim at his chest
+  controls.update();
+
+  loadPlayer(P, sz);
+  setStatus('field loaded', false);
+  setTimeout(() => { const el = document.getElementById('status'); if (el) el.style.display = 'none'; }, 1500);
+}, (p) => setStatus(`loading field… ${p.total ? Math.round(p.loaded / p.total * 100) + '%' : Math.round(p.loaded / 1024) + 'kB'}`),
+   (e) => setStatus('field load failed: ' + (e.message || e), true));
+
+// ---- render loop ----
+(function tick() {
+  drive(clock.getElapsedTime());
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+})();
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+</script>
+</body>
+</html>

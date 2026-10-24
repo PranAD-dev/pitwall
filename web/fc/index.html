@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#04060c" />
+  <meta name="description" content="A broadcast-presentation football game built in Three.js — everything procedural, no assets." />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="FIFAcher" />
+  <meta name="application-name" content="FIFAcher" />
+  <title>FIFAcher</title>
+
+  <!-- Home-screen install (Android/Chrome reads the manifest; iOS reads the
+       apple-touch-icon). The SVG favicon is for desktop tabs; the 32px PNG is
+       the fallback for browsers that don't take SVG. -->
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+
+  <meta property="og:title" content="FIFAcher" />
+  <meta property="og:description" content="Broadcast-presentation football in Three.js. Everything procedural, no assets." />
+  <meta property="og:image" content="./icons/icon-512.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden; background: #04060c;
+      overscroll-behavior: none; touch-action: none;
+      -webkit-user-select: none; user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Inter, system-ui, sans-serif; }
+    #app, #app canvas { width: 100%; height: 100%; display: block; }
+    #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+    #err {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 99;
+      background: rgba(160, 10, 10, .92); color: #fff;
+      font: 12px/1.5 ui-monospace, monospace; padding: 8px 12px;
+      white-space: pre-wrap; display: none; max-height: 40%; overflow: auto;
+    }
+    /* Portrait phones: ask for landscape — a 105x68 m pitch has nowhere to go
+       in a 9:16 frame, and the touch pad would cover half the play area. */
+    #rotate {
+      position: fixed; inset: 0; z-index: 60; display: none;
+      background: #04060c; color: #e8edf5; text-align: center;
+      align-items: center; justify-content: center; flex-direction: column; gap: 18px;
+      padding: 32px;
+    }
+    #rotate svg { width: 74px; height: 74px; opacity: .85; }
+    #rotate p { font-size: 16px; letter-spacing: .01em; line-height: 1.5; opacity: .85; }
+    #rotate b { display: block; font-size: 19px; margin-bottom: 4px; opacity: 1; }
+    @media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/build/three.module.js",
+        "three/addons/": "./vendor/three/addons/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="hud"></div>
+  <div id="rotate">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 3.5A9 9 0 0 1 12 2"/><path d="M17 20.5A9 9 0 0 1 12 22"/>
+    </svg>
+    <p><b>Rotate your device</b>Armor Park is played in landscape.</p>
+  </div>
+  <div id="err"></div>
+  <script>
+    window.__PAGE_ERRORS = [];
+    function showErr(msg) {
+      window.__PAGE_ERRORS.push(String(msg));
+      const el = document.getElementById('err');
+      el.style.display = 'block';
+      el.textContent = window.__PAGE_ERRORS.join('\n');
+    }
+    window.addEventListener('error', (e) => showErr(e.message + ' @ ' + (e.filename || '') + ':' + (e.lineno || '')));
+    window.addEventListener('unhandledrejection', (e) => showErr('unhandled: ' + (e.reason && e.reason.stack || e.reason)));
+    // Block the double-tap-to-zoom gesture that survives user-scalable=no on iOS.
+    document.addEventListener('gesturestart', (e) => e.preventDefault());
+  </script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
