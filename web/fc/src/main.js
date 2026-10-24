@@ -179,6 +179,9 @@ function setupField() {
     mesh.material.needsUpdate = true;
     pillars.push(p);
   }
+  // intro framing: camera facing the goal (the landing menu overlays this)
+  nav.dx = nav.tx = 48; nav.dy = nav.ty = 2.5; nav.dz = nav.tz = 0;
+  nav.taz = nav.az = -Math.PI / 2; nav.tpol = nav.pol = 0.12; nav.tr = nav.r = 34;
   initNav();
   buildNavUI();
 }
