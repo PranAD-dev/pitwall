@@ -44,6 +44,9 @@ seed: env ## Seed demo work items the explainer narrates (fraud hold, add-on rej
 retrieval: env ## (Re)build the Moss semantic indexes from Tiger (no-op if Moss unconfigured)
 	$(UV) run pitwall retrieval build
 
+tickets: env ## Load matchday/season ticket sales + forecast snapshots into golden (no world-regen)
+	$(UV) run python scripts/seed_tickets_forecast.py
+
 reset: env nuke up wait-db migrate generate seed retrieval ## FULL reset: wipe, start, migrate, world, seed, index (LOCAL docker)
 	@echo ""
 	@echo "world reset complete — $$(date)"

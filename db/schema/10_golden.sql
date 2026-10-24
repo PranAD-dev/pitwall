@@ -121,6 +121,45 @@ CREATE TABLE IF NOT EXISTS golden.historical_outcome (
     raw_ref       text
 );
 
+-- Matchday + season ticket sales — the club's gate-receipt revenue line (a slice of
+-- total revenue; feeds the forecast and the Revenue/Receivables seat). Deterministic,
+-- loaded by scripts/seed_tickets_forecast.py (no full world-regen needed).
+CREATE TABLE IF NOT EXISTS golden.ticket_sale (
+    id            text PRIMARY KEY,
+    kind          text NOT NULL CHECK (kind IN ('matchday','season')),
+    season        text NOT NULL,                  -- e.g. '2025/26'
+    match_id      text,                            -- null for season tickets
+    matchday      date,                            -- fixture date (null for season)
+    competition   text CHECK (competition IN ('league','cup','europe')),
+    opponent      text,
+    section       text NOT NULL,                   -- North Stand, Away End, Hospitality…
+    qty           int NOT NULL,
+    unit_price    numeric(10,2) NOT NULL,
+    gross         numeric(14,2) NOT NULL,           -- qty * unit_price
+    currency      text NOT NULL DEFAULT 'EUR',
+    sold_at       date NOT NULL,
+    raw_ref       text
+);
+CREATE INDEX IF NOT EXISTS ticket_sale_season_idx ON golden.ticket_sale (season, matchday);
+
+-- The forecast system of record (deck slide 7's 5th system) — monthly projections the
+-- agent can query and reconcile against. squad_cost_ratio is % of total revenue; the
+-- league limit is 70% (mirrors pitwall.agent.forecast). Loaded by the same script.
+CREATE TABLE IF NOT EXISTS golden.forecast_snapshot (
+    id                text PRIMARY KEY,
+    as_of             date NOT NULL,
+    horizon           text NOT NULL,                -- e.g. 'FY2025/26'
+    projected_cash    numeric(14,2) NOT NULL,
+    revenue_ytd       numeric(14,2) NOT NULL,
+    revenue_forecast  numeric(14,2) NOT NULL,       -- full-year total revenue
+    wage_bill         numeric(14,2) NOT NULL,
+    squad_cost_ratio  numeric(5,2) NOT NULL,         -- % of revenue (league limit 70)
+    ticket_revenue    numeric(14,2) NOT NULL DEFAULT 0,
+    note              text,
+    raw_ref           text
+);
+CREATE INDEX IF NOT EXISTS forecast_as_of_idx ON golden.forecast_snapshot (as_of);
+
 -- ---- hypertables (time-series) -------------------------------------------
 CREATE TABLE IF NOT EXISTS golden.bank_transaction (
     id                   text NOT NULL,
