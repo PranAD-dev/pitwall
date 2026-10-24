@@ -49,13 +49,13 @@ const TOWERS = [
   [1, 1], [1, -1], [-1, 1], [-1, -1],
 ].map(([sx, sz]) => new THREE.Vector3(sx * 70, 44, sz * 54));
 
-// Eight fictional sponsors. One brand per ~9 m board panel, cycling around the
-// whole perimeter so no brand ever sits next to itself.
+// Pit Wall financial ticker across the perimeter LED boards. Static figures for
+// now — wire these to live Pit Wall data (squad-cost cagg, cash position) later.
 const AD_BRANDS = [
-  'VOLTA ENERGY', 'ARMOR TELECOM', 'KROAZ AIR', 'MENHIR BANK',
-  'OCEANE ASSURANCE', 'LIGUE FABLE', 'STELLA MOTORS', 'BREIZH COLA',
+  'PIT WALL', 'SQUAD COST 68% / 70%', 'CASH £14.2M', 'TRANSFER PAYABLES £8.4M',
+  'AUTONOMOUS FINANCE', 'FFP HEADROOM £2.1M', 'EVIDENCE SPEND $0.42', 'HARBOURSIDE FC',
 ];
-const AD_HUES = [18, 208, 272, 152, 340, 44, 2, 190];
+const AD_HUES = [75, 82, 68, 75, 88, 75, 160, 75]; // volt-green family, one teal accent
 
 const AD_H = 0.9;            // board face height (m)
 const AD_SEG = 8.6;          // nominal panel width (m)
@@ -155,6 +155,7 @@ export function createStadium(ctx) {
   const signGeos = [];       // concrete signage banding
   const fasciaGeos = [];     // warm bounce band along the roof leading edge
   const screenGeos = [];     // big LED screens (corners + goal ends)
+  const screenViews = [];    // { pos, w, h, nx, nz } per screen — camera targets for in-world nav
 
   const interiorTex = makeInteriorTexture(rng, low ? 512 : 1024);
   const ATLAS_X = 4, ATLAS_Y = 2;
@@ -544,6 +545,7 @@ export function createStadium(ctx) {
       scr.rotateY(fyaw);
       scr.translate(sxp - stand.sign * 0.1, syp, 0);
       screenGeos.push(scr);
+      screenViews.push({ pos: new THREE.Vector3(sxp - stand.sign * 0.1, syp, 0), w: sw, h: sh, nx: -stand.sign, nz: 0 });
       for (const s of [-1, 1]) {
         box('steel', 0.3, 3.4, 0.3, sxp + stand.sign * 0.5, syp + sh / 2 + 1.9, s * (sw / 2 - 1.4));
         box('steel', 0.22, 0.22, 2.2, sxp + stand.sign * 1.1, syp + sh / 2 + 0.4, s * (sw / 2 - 1.4));
@@ -659,7 +661,7 @@ export function createStadium(ctx) {
       B.corner.push(ch);
       const pitchward = (d) => [sx * mx + nx * d, sz * mz + nz * d];
       const [scx, scz] = pitchward(0.26);
-      screenAnchors.push({ x: scx, z: scz, yaw: cyaw, w: chW - 1.8 });
+      screenAnchors.push({ x: scx, z: scz, yaw: cyaw, nx, nz, w: chW - 1.8 });
       // Screen surround / gantry, front face just behind the panel.
       const [frx, frz] = pitchward(-0.05);
       const fr = new THREE.BoxGeometry(chW - 0.9, 7.6, 0.5);
@@ -826,6 +828,7 @@ export function createStadium(ctx) {
     g.rotateY(a.yaw);
     g.translate(a.x, 19.8, a.z);
     screenGeos.push(g);
+    screenViews.push({ pos: new THREE.Vector3(a.x, 19.8, a.z), w, h: w * 0.5625, nx: a.nx, nz: a.nz });
   }
   const screens = new THREE.Mesh(mergeGeometries(screenGeos, false), screenMat);
   screens.name = 'big_screens';
@@ -1050,6 +1053,7 @@ export function createStadium(ctx) {
   let spillAcc = 0;
   return {
     group,
+    screenViews,
     update(dt) {
       t += dt;
       // LED panels breathe very slightly out of phase — reads as live boards
