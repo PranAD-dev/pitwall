@@ -12,6 +12,7 @@ eval_app = typer.Typer(no_args_is_help=True, help="score Pit Wall vs the answer 
 explain_app = typer.Typer(no_args_is_help=True, help="grounded narrated explanations (voice)")
 voice_app = typer.Typer(no_args_is_help=True, help="LiveKit + Cartesia voice agent")
 sow_app = typer.Typer(no_args_is_help=True, help="System of Work — gateway, roles, state machine")
+agent_app = typer.Typer(no_args_is_help=True, help="the autonomous agent — onboard, run, process")
 app.add_typer(db_app, name="db")
 app.add_typer(world_app, name="world")
 app.add_typer(demo_app, name="demo")
@@ -19,6 +20,7 @@ app.add_typer(eval_app, name="eval")
 app.add_typer(explain_app, name="explain")
 app.add_typer(voice_app, name="voice")
 app.add_typer(sow_app, name="sow")
+app.add_typer(agent_app, name="agent")
 
 
 @db_app.command("migrate")
@@ -327,6 +329,57 @@ def sow_walk() -> None:
 
     c.print("[bold]'why?' is one query:[/]")
     sow_audit(wi)
+
+
+@agent_app.command("onboard")
+def agent_onboard() -> None:
+    """Self-learning: mine 12 months of history → draft policies → controller reviews."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from .agent.run import onboard
+
+    outcomes = onboard()
+    t = Table(title="Onboarding · self-learning from history")
+    t.add_column("policy", style="cyan"); t.add_column("learned from"); t.add_column("evidence", justify="right")
+    t.add_column("controller", justify="center")
+    for o in outcomes:
+        verdict = "[green]approved[/]" if o["approved"] else "[red]rejected[/]"
+        t.add_row(o["policy"], o["situation"], str(o["evidence"]), verdict)
+    Console().print(t)
+    for o in outcomes:
+        Console().print(f"  [cyan]{o['policy']}[/] — {o['text']}  [dim]({o['reason']})[/]")
+
+
+@agent_app.command("run")
+def agent_run(limit: int = typer.Option(None, "--limit", help="only the first N scenarios")) -> None:
+    """Onboard, then autonomously process every planted scenario through the gateway."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from .agent.run import onboard, run_all
+
+    c = Console()
+    c.print("[bold]self-learning[/] — drafting policies from history…")
+    onboard()
+    c.print("[bold]processing scenarios[/] — code decides, gateway executes…\n")
+    summary = run_all(limit=limit)
+    t = Table(title="Autonomous run")
+    t.add_column("work item", style="cyan"); t.add_column("type"); t.add_column("action", style="green")
+    t.add_column("outcome"); t.add_column("routed to")
+    for r in summary["results"]:
+        if r.get("skipped"):
+            t.add_row(r["wi"], "", "", f"[dim]{r['skipped']}[/]", "")
+            continue
+        outcome = r.get("final", "")
+        extra = r.get("policy") or r.get("cfo") or ""
+        x = " 💳" if r.get("x402") else ""
+        t.add_row(r["wi"], r["type"], r["action"] + x, outcome, r.get("escalated_to") or extra)
+    c.print(t)
+    c.print(f"\n[bold]{summary['auto_completed']}[/] auto-completed · "
+            f"[bold]{summary['escalated']}[/] escalated to a human · "
+            f"{summary['skipped']} already processed  (of {summary['n']})")
+    c.print("[dim]see any item's trail with:  pitwall sow audit WI-<id>[/]")
 
 
 if __name__ == "__main__":

@@ -185,6 +185,60 @@ def post(actor: Actor, item_id: str, *, journal_lines: list[dict] | None = None,
     return item
 
 
+def auto_complete(item_id: str, policy_id: str, policy_version: int, *,
+                  journal_lines: list[dict] | None = None, reason: str = "") -> dict:
+    """Approve-on-policy: when a human-approved, auto_approve policy covers a PROPOSED
+    item and all hard checks passed, the gateway approves + posts it. Logged as actor
+    'policy:pol-xxx vN' — never as the agent (the agent cannot approve its own work).
+    The gateway verifies the policy is approved + auto_approve before acting."""
+    conn = connect("gateway")
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT status, auto_approve FROM work.policy WHERE id=%s AND version=%s",
+                        (policy_id, policy_version))
+            pol = cur.fetchone()
+            if not pol or pol[0] != "approved" or not pol[1]:
+                raise Denied("auto_complete", item_id, "no approved auto_approve policy covers this")
+    finally:
+        conn.close()
+    return _policy_approve_and_post(item_id, policy_id, policy_version, journal_lines, reason)
+
+
+def _policy_approve_and_post(item_id, policy_id, policy_version, journal_lines, reason) -> dict:
+    """Gateway-authority approve+post under a verified auto_approve policy (one door)."""
+    actor_id = f"policy:{policy_id} v{policy_version}"
+    conn = connect("gateway")
+    conn.row_factory = dict_row
+    try:
+        with conn.cursor(row_factory=dict_row) as cur:
+            item = read_work_item(cur, item_id)
+            if item is None or next_state(item["state"], "approve") is None:
+                raise Denied("auto_complete", item_id, f"state {item and item['state']} cannot approve")
+            for action, to in (("approve", "APPROVED"), ("post", "POSTED")):
+                before = _snapshot(item)
+                item["state"] = to
+                if action == "approve":
+                    item["approved_by"] = actor_id
+                cur.execute("UPDATE work.work_item SET state=%s, approved_by=%s, updated_at=%s WHERE id=%s",
+                            (to, item.get("approved_by"), _now(), item_id))
+                cur.execute(
+                    "INSERT INTO work.audit_log (at, actor, action, subject, allowed, reason, diff, "
+                    "policy_id, policy_version) VALUES (%s,%s,%s,%s,true,%s,%s,%s,%s)",
+                    (_now(), actor_id if action == "approve" else "gateway", action, item_id,
+                     reason or f"approve-on-policy {policy_id} v{policy_version}" if action == "approve"
+                     else "posted to record", Json(_diff(before, _snapshot(item))),
+                     policy_id, policy_version))
+            if journal_lines:
+                cur.execute(
+                    "INSERT INTO golden.journal_entry (id, lines, source_work_item, posted_by) "
+                    "VALUES (%s,%s,%s,'gateway') ON CONFLICT (id) DO NOTHING",
+                    (f"je-{item_id}", Json(journal_lines), item_id))
+        conn.commit()
+        return item
+    finally:
+        conn.close()
+
+
 def audit_trail(subject: str) -> list[dict]:
     """"Why?" is one query. Returns every transition on a subject, denied ones too."""
     conn = connect("gateway")
