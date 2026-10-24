@@ -132,6 +132,22 @@ class _Bridge:
         loop = self._ensure_loop()
         return asyncio.run_coroutine_threadsafe(make_coro(client), loop).result(timeout)
 
+    def shutdown(self) -> None:
+        """Close the Moss client and stop the loop (frees the native runtime so a
+        process can exit cleanly). Safe to call more than once / when never used."""
+        with self._lock:
+            if self._client is not None and self._loop is not None:
+                try:
+                    asyncio.run_coroutine_threadsafe(self._client.close(), self._loop).result(10)
+                except Exception:
+                    pass
+            if self._loop is not None:
+                try:
+                    self._loop.call_soon_threadsafe(self._loop.stop)
+                except Exception:
+                    pass
+            self._client = None
+
 
 _bridge = _Bridge()
 
@@ -142,6 +158,11 @@ def is_available() -> bool:
         return get_settings().moss_is_live
     except Exception:
         return False
+
+
+def shutdown() -> None:
+    """Release the Moss runtime (call on process teardown / at the end of a CLI cmd)."""
+    _bridge.shutdown()
 
 
 # --------------------------------------------------------------------------- #

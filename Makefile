@@ -6,7 +6,7 @@ UV := uv
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env venv up down nuke wait-db migrate generate reset demo eval psql answer-key fmt
+.PHONY: help env venv up down nuke wait-db migrate generate reset demo eval psql answer-key fmt retrieval
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -41,11 +41,14 @@ generate: env ## Generate the deterministic world + answer_key.json
 seed: env ## Seed demo work items the explainer narrates (fraud hold, add-on reject)
 	$(UV) run pitwall explain seed-demo
 
-reset: env nuke up wait-db migrate generate seed ## FULL reset: wipe, start, migrate, world, seed (LOCAL docker)
+retrieval: env ## (Re)build the Moss semantic indexes from Tiger (no-op if Moss unconfigured)
+	$(UV) run pitwall retrieval build
+
+reset: env nuke up wait-db migrate generate seed retrieval ## FULL reset: wipe, start, migrate, world, seed, index (LOCAL docker)
 	@echo ""
 	@echo "world reset complete — $$(date)"
 
-cloud-reset: env migrate generate seed ## Migrate + load world + seed against PITWALL_DATABASE_URL (no docker)
+cloud-reset: env migrate generate seed retrieval ## Migrate + load world + seed + index against PITWALL_DATABASE_URL (no docker)
 	@echo ""
 	@echo "cloud reset complete — targeting PITWALL_DATABASE_URL"
 

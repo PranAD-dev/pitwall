@@ -13,6 +13,7 @@ explain_app = typer.Typer(no_args_is_help=True, help="grounded narrated explanat
 voice_app = typer.Typer(no_args_is_help=True, help="LiveKit + Cartesia voice agent")
 sow_app = typer.Typer(no_args_is_help=True, help="System of Work — gateway, roles, state machine")
 agent_app = typer.Typer(no_args_is_help=True, help="the autonomous agent — onboard, run, process")
+retrieval_app = typer.Typer(no_args_is_help=True, help="Moss semantic retrieval (Tiger stays the truth)")
 app.add_typer(db_app, name="db")
 app.add_typer(world_app, name="world")
 app.add_typer(demo_app, name="demo")
@@ -21,6 +22,7 @@ app.add_typer(explain_app, name="explain")
 app.add_typer(voice_app, name="voice")
 app.add_typer(sow_app, name="sow")
 app.add_typer(agent_app, name="agent")
+app.add_typer(retrieval_app, name="retrieval")
 
 
 @db_app.command("migrate")
@@ -525,6 +527,122 @@ def agent_run(limit: int = typer.Option(None, "--limit", help="only the first N 
             f"[bold]{summary['escalated']}[/] escalated to a human · "
             f"{summary['skipped']} already processed  (of {summary['n']})")
     c.print("[dim]see any item's trail with:  pitwall sow audit WI-<id>[/]")
+
+
+@retrieval_app.command("build")
+def retrieval_build(
+    llm: bool = typer.Option(False, "--llm", help="use Claude for decision summaries "
+                             "(validated; default = grounded template summaries)"),
+) -> None:
+    """(Re)build all five Moss indexes from Tiger. Idempotent — the `make reset` path."""
+    from rich.console import Console
+
+    from .retrieval import client as R
+    from .retrieval import sync
+
+    c = Console()
+    if not R.is_available():
+        c.print("[yellow]Moss not configured[/] — set MOSS_PROJECT_ID / MOSS_PROJECT_KEY in .env. "
+                "Retrieval is optional; the rest of Pit Wall runs Tiger-only.")
+        return
+    c.print("[bold]building Moss indexes from Tiger[/] [dim](Moss finds; Tiger is the truth)[/]")
+    try:
+        res = sync.build_all(use_llm=llm)
+        for kind, n in res.items():
+            if isinstance(n, dict) and n.get("error"):
+                c.print(f"  [red]✗ {kind:11}[/] {n['error']}")
+            else:
+                c.print(f"  [green]✓ {kind:11}[/] {n} document(s)")
+        errs = [k for k, v in res.items() if isinstance(v, dict) and v.get("error")]
+        if any("usage limit" in str(v) for v in res.values() if isinstance(v, dict)):
+            c.print("\n[yellow]Moss project quota reached[/] — raise the tier/quota, then re-run "
+                    "[bold]pitwall retrieval build[/] to finish the remaining indexes.")
+        elif not errs:
+            c.print("\n[green]all indexes built[/] — try [bold]pitwall retrieval query clauses "
+                    "\"relegation\"[/]")
+    finally:
+        R.shutdown()
+
+
+@retrieval_app.command("upsert")
+def retrieval_upsert(
+    kind: str = typer.Argument(..., help="clauses|policies|decisions|precedents|questions"),
+    tiger_id: str = typer.Argument(..., help="the Tiger primary key, e.g. WI-5602"),
+    delete: bool = typer.Option(False, "--delete", help="remove the doc instead of upserting"),
+) -> None:
+    """Refresh a single document from Tiger (what the gateway calls after a commit)."""
+    from .retrieval import client as R
+    from .retrieval import sync
+
+    try:
+        res = sync.upsert(kind, tiger_id, op="delete" if delete else "upsert")
+        typer.echo(res)
+    finally:
+        R.shutdown()
+
+
+@retrieval_app.command("outbox")
+def retrieval_outbox() -> None:
+    """Drain the retry queue (documents that failed to index while Moss was down)."""
+    from .retrieval import client as R
+    from .retrieval import sync
+
+    try:
+        typer.echo(sync.drain_outbox())
+    finally:
+        R.shutdown()
+
+
+@retrieval_app.command("query")
+def retrieval_query(
+    kind: str = typer.Argument(..., help="which index: clauses|policies|decisions|precedents|questions"),
+    text: str = typer.Argument(..., help="natural-language query"),
+    top_k: int = typer.Option(5, "--top-k"),
+    alpha: float = typer.Option(0.8, "--alpha", help="1.0 semantic · 0.0 keyword · 0.8 hybrid"),
+) -> None:
+    """Semantic search one index (ids point back to Tiger; nothing here is truth)."""
+    from rich.console import Console
+
+    from .config import get_settings
+    from .retrieval import client as R
+
+    c = Console()
+    try:
+        if not R.is_available():
+            c.print("[yellow]Moss not configured[/]")
+            return
+        res = R.query(get_settings().moss_index(kind), text, top_k=top_k, alpha=alpha)
+        c.print(f"[dim]{R.ms(res)}ms · {kind}[/]")
+        for h in R.hits(res):
+            c.print(f"  [cyan]{h['id']}[/] [dim]{h['score']:.3f}[/]  {h['text'][:110]}")
+    finally:
+        R.shutdown()
+
+
+@retrieval_app.command("status")
+def retrieval_status() -> None:
+    """Show which indexes exist on the Moss project + any pending outbox rows."""
+    from rich.console import Console
+
+    from .db import connect
+    from .retrieval import client as R
+
+    c = Console()
+    try:
+        if not R.is_available():
+            c.print("[yellow]Moss not configured[/]")
+            return
+        c.print("[bold]Moss indexes:[/] " + ", ".join(R.list_indexes()))
+    finally:
+        R.shutdown()
+    conn = connect("retrieval")
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM work.moss_outbox WHERE done_at IS NULL")
+            pending = cur.fetchone()[0]
+    finally:
+        conn.close()
+    c.print(f"[bold]outbox pending:[/] {pending}")
 
 
 if __name__ == "__main__":
