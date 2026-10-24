@@ -1,0 +1,176 @@
+{
+  "subject_id": "acme-close-2026-03",
+  "title": "Acme Corp \u2014 March close, reviewed",
+  "scenes": [
+    {
+      "say": "In March, revenue was $4,820,000 and net income came in at $610,000.",
+      "ui": {
+        "focus": "P&L \u2014 March",
+        "panel": "canvas",
+        "highlight": "table"
+      },
+      "facts": [
+        {
+          "key": "revenue",
+          "value": "$4,820,000",
+          "source": "report"
+        },
+        {
+          "key": "net_income",
+          "value": "$610,000",
+          "source": "report"
+        }
+      ],
+      "draw": {
+        "type": "table",
+        "title": "P&L \u2014 March",
+        "columns": [
+          "Line",
+          "Amount"
+        ],
+        "rows": [
+          [
+            "Revenue",
+            "$4,820,000"
+          ],
+          [
+            "COGS",
+            "($2,310,000)"
+          ],
+          [
+            "Opex",
+            "($1,540,000)"
+          ],
+          [
+            "Operating income",
+            "$970,000"
+          ],
+          [
+            "Net income",
+            "$610,000"
+          ]
+        ],
+        "highlight_row": 4
+      }
+    },
+    {
+      "say": "We settled a $250,000 supplier invoice \u2014 payables down, cash down.",
+      "ui": {
+        "focus": "journal entry",
+        "panel": "canvas",
+        "highlight": "entry"
+      },
+      "facts": [
+        {
+          "key": "amount",
+          "value": "$250,000",
+          "source": "ledger"
+        }
+      ],
+      "draw": {
+        "type": "entry",
+        "title": "journal entry",
+        "lines": [
+          "Dr  Accounts payable      $250,000",
+          "Cr  Cash                  $250,000"
+        ]
+      }
+    },
+    {
+      "say": "The bank reconciled to the cent \u2014 $52,500 of outstanding checks explains the gap.",
+      "ui": {
+        "focus": "reconciliation",
+        "panel": "canvas",
+        "highlight": "calc"
+      },
+      "facts": [
+        {
+          "key": "outstanding",
+          "value": "$52,500",
+          "source": "calc"
+        }
+      ],
+      "draw": {
+        "type": "calc",
+        "title": "reconciliation",
+        "lines": [
+          "Book balance        $1,205,400",
+          "Bank statement      $1,257,900",
+          "Outstanding checks  $52,500",
+          "1,205,400 + 52,500 = 1,257,900  tie"
+        ]
+      }
+    },
+    {
+      "say": "Every close check passed.",
+      "ui": {
+        "focus": "checks",
+        "panel": "canvas",
+        "highlight": "checks"
+      },
+      "facts": [],
+      "draw": {
+        "type": "checks",
+        "title": "checks",
+        "items": [
+          {
+            "label": "Subledgers tie to GL",
+            "ok": true
+          },
+          {
+            "label": "Accruals posted",
+            "ok": true
+          },
+          {
+            "label": "Intercompany eliminated",
+            "ok": true
+          },
+          {
+            "label": "FX revalued",
+            "ok": true
+          }
+        ]
+      }
+    },
+    {
+      "say": "We beat plan: revenue of $4,820,000 against $4,500,000 budgeted.",
+      "ui": {
+        "focus": "comparison",
+        "panel": "canvas",
+        "highlight": "compare"
+      },
+      "facts": [
+        {
+          "key": "actual_rev",
+          "value": "$4,820,000",
+          "source": "compare"
+        },
+        {
+          "key": "budget_rev",
+          "value": "$4,500,000",
+          "source": "compare"
+        }
+      ],
+      "draw": {
+        "type": "compare",
+        "title": "comparison",
+        "columns": [
+          {
+            "label": "Budget",
+            "lines": [
+              "Revenue  $4,500,000",
+              "Net      $520,000"
+            ]
+          },
+          {
+            "label": "Actual",
+            "lines": [
+              "Revenue  $4,820,000",
+              "Net      $610,000"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

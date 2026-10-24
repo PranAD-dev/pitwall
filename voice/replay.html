@@ -65,7 +65,7 @@ async function revealEach(nodes, dur){
 }
 
 async function drawTable(d, dur){
-  canvas.innerHTML = `<div class="ctitle">installment history</div>`;
+  canvas.innerHTML = `<div class="ctitle">${d.title||"table"}</div>`;
   const t = document.createElement("table");
   t.innerHTML = "<tr>" + d.columns.map(c=>`<th>${c}</th>`).join("") + "</tr>";
   const trs = d.rows.map((row,i)=>{
@@ -78,25 +78,25 @@ async function drawTable(d, dur){
   canvas.appendChild(t); await revealEach(trs, dur);
 }
 async function drawCalc(d, dur){
-  canvas.innerHTML = `<div class="ctitle">calculation</div>`;
+  canvas.innerHTML = `<div class="ctitle">${d.title||"calculation"}</div>`;
   const ns = d.lines.map((l,i)=>{ const e=document.createElement("div");
     e.className="cline"+(i===d.lines.length-1?" result":""); e.textContent=l; canvas.appendChild(e); return e; });
   await revealEach(ns, dur);
 }
 async function drawEntry(d, dur){
-  canvas.innerHTML = `<div class="ctitle">journal entry</div>`;
+  canvas.innerHTML = `<div class="ctitle">${d.title||"journal entry"}</div>`;
   const ns = d.lines.map(l=>{ const e=document.createElement("div"); e.className="cline"; e.textContent=l; canvas.appendChild(e); return e; });
   await revealEach(ns, dur*0.8);
   const s=document.createElement("div"); s.className="stamp"; s.textContent="POSTED by gateway"; canvas.appendChild(s);
 }
 async function drawChecks(d, dur){
-  canvas.innerHTML = `<div class="ctitle">hard checks</div>`;
+  canvas.innerHTML = `<div class="ctitle">${d.title||"checks"}</div>`;
   const ns = d.items.map(it=>{ const e=document.createElement("div"); e.className="chk";
     e.innerHTML = (it.ok?'<span class="ok">✓</span> ':'<span class="bad">✗</span> ') + it.label; canvas.appendChild(e); return e; });
   await revealEach(ns, dur);
 }
 async function drawFlow(d, dur){
-  canvas.innerHTML = `<div class="ctitle">escalation</div>`;
+  canvas.innerHTML = `<div class="ctitle">${d.title||"escalation"}</div>`;
   const wrap=document.createElement("div"); wrap.className="flow"; canvas.appendChild(wrap);
   const boxes=[];
   d.boxes.forEach((b,i)=>{ if(i) { const a=document.createElement("span"); a.className="arrow"; a.textContent="→"; wrap.appendChild(a);}
@@ -104,7 +104,7 @@ async function drawFlow(d, dur){
   const step=Math.max(300,dur/boxes.length); for(const b of boxes){ b.classList.add("lit"); await sleep(step); }
 }
 async function drawCompare(d, dur){
-  canvas.innerHTML = `<div class="ctitle">comparison</div><div class="cmp"></div>`;
+  canvas.innerHTML = `<div class="ctitle">${d.title||"comparison"}</div><div class="cmp"></div>`;
   const grid=canvas.querySelector(".cmp"); const all=[];
   d.columns.forEach(col=>{ const c=document.createElement("div");
     c.innerHTML=`<div class="fact">${col.label||""}</div>`; grid.appendChild(c);

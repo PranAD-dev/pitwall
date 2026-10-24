@@ -67,49 +67,104 @@ def explain_seed_demo() -> None:
     seed()
 
 
-@explain_app.command("plan")
-def explain_plan(
-    work_item_id: str = typer.Argument(..., help="e.g. WI-5602"),
-    as_of: str = typer.Option(None, "--as-of", help="ISO time to rewind to, e.g. 2026-05-05T09:19"),
-    no_persist: bool = typer.Option(False, "--no-persist", help="don't write the explanation"),
-) -> None:
-    """Build + validate a grounded narration plan and play it as timed captions."""
+def _play_plan(p) -> bool:
+    """Render any plan (football or generic) as timed captions. Returns grounded?"""
     import time as _time
-    from datetime import datetime
 
     from rich.console import Console
     from rich.panel import Panel
 
-    from .explain import plan as planmod
+    from explainer import engine
 
     console = Console()
-    when = datetime.fromisoformat(as_of) if as_of else None
-    p = planmod.build_plan(work_item_id, as_of=when)
-
-    header = f"[bold]{p['title']}[/]  ·  {work_item_id}"
-    if p["as_of"]:
+    header = f"[bold]{p['title']}[/]  ·  {p.get('subject_id', '')}"
+    if p.get("as_of"):
         header += f"  ·  [cyan]as of {p['as_of']}[/] (only what was known then)"
     console.print(Panel(header, border_style="grey37"))
-
     all_grounded = True
     for i, sc in enumerate(p["scenes"], 1):
-        ungrounded = planmod.validate_scene(sc)
+        ungrounded = engine.validate_scene(sc)
         all_grounded = all_grounded and not ungrounded
-        facts = "  ".join(f"[dim]{f['key']}=[/]{f['value']}" for f in sc["facts"])
+        facts = "  ".join(f"[dim]{f['key']}=[/]{f['value']}" for f in sc.get("facts", []))
         mark = "[green]✓[/]" if not ungrounded else f"[red]✗ {ungrounded}[/]"
         console.print(f"\n[bold cyan]scene {i}[/]  →  focus=[yellow]{sc['ui'].get('highlight')}[/] {mark}")
         console.print(f'  [white]"{sc["say"]}"[/]')
         console.print(f"  {facts}")
         if sc.get("draw"):
             console.print(f"  [magenta]canvas:[/] {sc['draw']['type']} (builds on screen)")
-        _time.sleep(0.15)
-
+        _time.sleep(0.12)
     console.print()
-    console.print("[green]✓ every spoken number is grounded in a tool fact[/]" if all_grounded
+    console.print("[green]✓ every spoken number is grounded in source data[/]" if all_grounded
                   else "[red]✗ some numbers were not grounded[/]")
+    return all_grounded
+
+
+def _export(plan, out: str) -> None:
+    import json
+    from pathlib import Path
+
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_text("window.PITWALL_PLAN = " + json.dumps(plan, indent=2) + ";\n")
+    typer.secho(f"wrote {out} — open voice/replay.html to watch it build live", fg="green")
+
+
+@explain_app.command("plan")
+def explain_plan(
+    work_item_id: str = typer.Argument(..., help="e.g. WI-5602"),
+    as_of: str = typer.Option(None, "--as-of", help="ISO time to rewind to, e.g. 2026-05-05T09:19"),
+    no_persist: bool = typer.Option(False, "--no-persist", help="don't write the explanation"),
+) -> None:
+    """[Pit Wall] Build + validate a grounded narration plan and play it."""
+    from datetime import datetime
+
+    from .explain import plan as planmod
+
+    when = datetime.fromisoformat(as_of) if as_of else None
+    p = planmod.build_plan(work_item_id, as_of=when)
+    _play_plan(p)
     if not no_persist:
         pid = planmod.persist_plan(p)
-        console.print(f"[dim]explanation logged to audit as {pid} (actor=explainer, via gateway)[/]")
+        typer.secho(f"explanation logged to audit as {pid} (actor=explainer, via gateway)", fg="bright_black")
+
+
+@explain_app.command("from-json")
+def explain_from_json(
+    path: str = typer.Argument(..., help="an explain-request JSON file or directory"),
+    subject: str = typer.Argument("", help="subject id (only for a directory / multi-key file)"),
+    export: str = typer.Option(None, "--export", help="also write a browser plan, e.g. voice/plan.js"),
+) -> None:
+    """[Generic] Narrate ANY financial data you plug in as an explain-request JSON."""
+    from explainer import engine
+    from explainer.llm import make_anthropic_say_writer
+    from explainer.providers import JsonProvider
+
+    from .config import get_settings
+
+    req = JsonProvider(path).fetch(subject)
+    s = get_settings()
+    sw = make_anthropic_say_writer(s.anthropic_api_key, s.pitwall_agent_model) if s.llm_is_live else None
+    plan = engine.build_plan(req, say_writer=sw)
+    _play_plan(plan)
+    if export:
+        _export(plan, export)
+
+
+@explain_app.command("sample")
+def explain_sample(
+    export: str = typer.Option("voice/plan.js", "--export", help="browser plan path"),
+) -> None:
+    """[Generic] Play the bundled non-football sample (a monthly close) and export it."""
+    from pathlib import Path
+
+    import explainer
+    from explainer import engine
+
+    sample = Path(explainer.__file__).parent / "samples" / "acme-close-2026-03.json"
+    import json
+
+    plan = engine.build_plan(json.loads(sample.read_text()))
+    _play_plan(plan)
+    _export(plan, export)
 
 
 @explain_app.command("export")
