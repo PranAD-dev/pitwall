@@ -830,11 +830,17 @@ export function createStadium(ctx) {
     screenGeos.push(g);
     screenViews.push({ pos: new THREE.Vector3(a.x, 19.8, a.z), w, h: w * 0.5625, nx: a.nx, nz: a.nz });
   }
-  const screens = new THREE.Mesh(mergeGeometries(screenGeos, false), screenMat);
-  screens.name = 'big_screens';
-  screens.renderOrder = 1;
-  group.add(screens);
-  screenGeos.forEach((g) => g.dispose());
+  // One mesh PER screen (not merged), each with its own material, so each big
+  // screen can show a different Pit Wall pillar. Share the default texture until
+  // the field view overrides each one.
+  screenGeos.forEach((g, i) => {
+    const mat = new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false, fog: true });
+    mat.color.setRGB(1.35, 1.35, 1.35);
+    const m = new THREE.Mesh(g, mat);
+    m.name = 'big_screen_' + i;
+    m.renderOrder = 1;
+    group.add(m);
+  });
 
   // -- pitchside population -------------------------------------------------
   buildStewards(group, rng, low);

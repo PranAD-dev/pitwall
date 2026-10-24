@@ -13,7 +13,7 @@ import { createHud } from './hud.js';
 import { createPostFX } from './postfx.js';
 import { createCommentary } from './commentary.js';
 import { createAudio } from './audio.js';
-import { createDashboard } from './dashboard.js';
+import { PILLAR_KEYS, createPillar } from './pillars.js';
 
 const params = new URLSearchParams(location.search);
 const SEED = parseInt(params.get('seed') || '7', 10);
@@ -162,16 +162,23 @@ function buildNavUI() {
   document.getElementById('pw-next').addEventListener('click', () => focusBoard(cur() + 1));
   document.getElementById('pw-over').addEventListener('click', overview);
 }
-let dash = null;
+let pillars = [];
 function setupField() {
   for (const p of teams.players) p.group.visible = false; // remove all 22 players + referee
   if (ball.mesh) ball.mesh.visible = false;               // and the ball
   const hudEl = document.getElementById('hud');
   if (hudEl) hudEl.style.display = 'none';                // no scoreboard overlay
-  // Pit Wall dashboard IN-WORLD on the big LED screens (corners + goal ends)
-  dash = createDashboard(1024);
-  const screens = scene.getObjectByName('big_screens');
-  if (screens) { screens.material.map = dash.texture; screens.material.needsUpdate = true; }
+  // A DIFFERENT Pit Wall pillar on each big LED screen, live from :4055
+  pillars = [];
+  const n = (stadium.screenViews || []).length;
+  for (let i = 0; i < n; i++) {
+    const mesh = scene.getObjectByName('big_screen_' + i);
+    if (!mesh) continue;
+    const p = createPillar(PILLAR_KEYS[i % PILLAR_KEYS.length]);
+    mesh.material.map = p.texture;
+    mesh.material.needsUpdate = true;
+    pillars.push(p);
+  }
   initNav();
   buildNavUI();
 }
@@ -192,7 +199,7 @@ function frameUpdate(dt) {
   lighting.update(dt);
   if (stadium.update) stadium.update(dt);
   if (pitch.update) pitch.update(dt, match.state);
-  if (FIELD) { updateNav(dt); if (dash) dash.update(dt); } else rig.update(dt);
+  if (FIELD) { updateNav(dt); for (const p of pillars) p.update(dt); } else rig.update(dt);
   if (!FIELD) hud.update(dt);
   if (!FIELD) commentary.update(dt); // no voicelines on the empty field
   if (!FIELD) audio.update(dt, ex);  // and no crowd audio
