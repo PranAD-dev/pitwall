@@ -1,0 +1,135 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Pit Wall — Explainer replay</title>
+<!-- Offline scene player. Loads window.PITWALL_PLAN from plan.js (write it with
+     `pitwall explain export <WI> -o voice/plan.js`). No audio/keys needed: plays
+     the validated plan as timed captions while the canvas builds on the right —
+     the "audio fails" fallback the acceptance checklist requires. -->
+<script src="plan.js"></script>
+<style>
+  :root { --dim:#5a5f66; --fg:#d6dbe0; --green:#35d07f; --amber:#e0a93b; --red:#ff5d5d; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#000; color:var(--fg); font:14px/1.55 ui-monospace,Menlo,Consolas,monospace; }
+  header { padding:14px 20px; border-bottom:1px solid #16181c; display:flex; gap:14px; align-items:baseline; }
+  header b { color:#fff; } header .meta { color:var(--dim); }
+  button { background:#101317; color:var(--fg); border:1px solid #23272e; border-radius:5px;
+           padding:6px 14px; font:inherit; cursor:pointer; margin-left:auto; }
+  button:hover { border-color:#3a414b; }
+  main { display:grid; grid-template-columns: 1fr 1fr; gap:0; height:calc(100vh - 54px); }
+  #term { padding:18px 22px; border-right:1px solid #16181c; overflow:auto; }
+  #term .line { opacity:0; transform:translateY(4px); transition:all .25s; margin:10px 0; }
+  #term .line.show { opacity:1; transform:none; }
+  #term .say::before { content:"▸ "; color:var(--green); }
+  #term .fact { color:var(--dim); font-size:12.5px; }
+  #canvas { padding:22px 26px; overflow:auto; opacity:0; transition:opacity .4s; }
+  #canvas.open { opacity:1; }
+  .ctitle { color:var(--dim); text-transform:uppercase; letter-spacing:.14em; font-size:11px; margin-bottom:14px; }
+  table { border-collapse:collapse; width:100%; }
+  th,td { text-align:left; padding:6px 12px; border-bottom:1px solid #15171b; }
+  th { color:var(--dim); font-weight:400; }
+  tr.row { opacity:0; transition:opacity .3s; } tr.row.show { opacity:1; }
+  tr.hot td { color:#fff; } .yes { color:var(--red); } .no { color:var(--green); }
+  .cline { opacity:0; transition:opacity .25s; margin:4px 0; white-space:pre; } .cline.show { opacity:1; }
+  .cline.result { color:var(--green); font-weight:600; } .stamp { color:var(--green); margin-top:10px; }
+  .chk { opacity:0; transition:opacity .25s; margin:7px 0; } .chk.show { opacity:1; }
+  .chk .ok { color:var(--green); } .chk .bad { color:var(--red); }
+  .flow { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .box { border:1px solid #23272e; border-radius:6px; padding:10px 16px; color:var(--dim);
+         opacity:.4; transition:all .3s; } .box.lit { opacity:1; color:#fff; border-color:var(--amber); }
+  .arrow { color:var(--dim); } .cmp { display:grid; grid-template-columns:1fr 1fr; gap:26px; }
+  .foot { color:var(--dim); font-size:11.5px; padding:8px 22px; border-top:1px solid #16181c; }
+</style>
+
+<header>
+  <b>PIT WALL</b><span class="meta" id="title">Explainer</span>
+  <button id="play">▶ Explain</button>
+</header>
+<main>
+  <div id="term"></div>
+  <div id="canvas"></div>
+</main>
+<div class="foot" id="foot">SIMULATED · captions only (no audio) · every number shown was returned by a tool</div>
+
+<script>
+const PLAN = window.PITWALL_PLAN || {title:"no plan.js — run: pitwall explain export WI-5602 -o voice/plan.js", scenes:[]};
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const term = $("#term"), canvas = $("#canvas");
+$("#title").textContent = PLAN.title + (PLAN.as_of ? "  ·  as of " + PLAN.as_of : "");
+
+function words(s){ return (s.match(/\S+/g)||[]).length; }
+
+async function revealEach(nodes, dur){
+  const step = Math.max(180, dur / Math.max(nodes.length,1));
+  for (const n of nodes){ n.classList.add("show"); await sleep(step); }
+}
+
+async function drawTable(d, dur){
+  canvas.innerHTML = `<div class="ctitle">installment history</div>`;
+  const t = document.createElement("table");
+  t.innerHTML = "<tr>" + d.columns.map(c=>`<th>${c}</th>`).join("") + "</tr>";
+  const trs = d.rows.map((row,i)=>{
+    const tr = document.createElement("tr"); tr.className = "row" + (i===d.highlight_row?" hot":"");
+    tr.innerHTML = row.map((c,ci)=>{
+      let cls = ""; if (ci===row.length-1) cls = /yes/i.test(c)?"yes":"no";
+      return `<td class="${cls}">${c}</td>`;
+    }).join(""); t.appendChild(tr); return tr;
+  });
+  canvas.appendChild(t); await revealEach(trs, dur);
+}
+async function drawCalc(d, dur){
+  canvas.innerHTML = `<div class="ctitle">calculation</div>`;
+  const ns = d.lines.map((l,i)=>{ const e=document.createElement("div");
+    e.className="cline"+(i===d.lines.length-1?" result":""); e.textContent=l; canvas.appendChild(e); return e; });
+  await revealEach(ns, dur);
+}
+async function drawEntry(d, dur){
+  canvas.innerHTML = `<div class="ctitle">journal entry</div>`;
+  const ns = d.lines.map(l=>{ const e=document.createElement("div"); e.className="cline"; e.textContent=l; canvas.appendChild(e); return e; });
+  await revealEach(ns, dur*0.8);
+  const s=document.createElement("div"); s.className="stamp"; s.textContent="POSTED by gateway"; canvas.appendChild(s);
+}
+async function drawChecks(d, dur){
+  canvas.innerHTML = `<div class="ctitle">hard checks</div>`;
+  const ns = d.items.map(it=>{ const e=document.createElement("div"); e.className="chk";
+    e.innerHTML = (it.ok?'<span class="ok">✓</span> ':'<span class="bad">✗</span> ') + it.label; canvas.appendChild(e); return e; });
+  await revealEach(ns, dur);
+}
+async function drawFlow(d, dur){
+  canvas.innerHTML = `<div class="ctitle">escalation</div>`;
+  const wrap=document.createElement("div"); wrap.className="flow"; canvas.appendChild(wrap);
+  const boxes=[];
+  d.boxes.forEach((b,i)=>{ if(i) { const a=document.createElement("span"); a.className="arrow"; a.textContent="→"; wrap.appendChild(a);}
+    const e=document.createElement("div"); e.className="box"; e.textContent=b; wrap.appendChild(e); boxes.push(e); });
+  const step=Math.max(300,dur/boxes.length); for(const b of boxes){ b.classList.add("lit"); await sleep(step); }
+}
+async function drawCompare(d, dur){
+  canvas.innerHTML = `<div class="ctitle">comparison</div><div class="cmp"></div>`;
+  const grid=canvas.querySelector(".cmp"); const all=[];
+  d.columns.forEach(col=>{ const c=document.createElement("div");
+    c.innerHTML=`<div class="fact">${col.label||""}</div>`; grid.appendChild(c);
+    col.lines.forEach(l=>{ const e=document.createElement("div"); e.className="cline"; e.textContent=l; c.appendChild(e); all.push(e); }); });
+  await revealEach(all, dur);
+}
+const DRAW = {table:drawTable, calc:drawCalc, entry:drawEntry, checks:drawChecks, flow:drawFlow, compare:drawCompare};
+
+async function playScene(sc){
+  const dur = Math.max(2300, words(sc.say)*300);
+  const say = document.createElement("div"); say.className="line say"; say.textContent = sc.say; term.appendChild(say);
+  const facts = document.createElement("div"); facts.className="line fact";
+  facts.textContent = (sc.facts||[]).map(f=>`${f.key}=${f.value}`).join("   "); term.appendChild(facts);
+  requestAnimationFrame(()=>{ say.classList.add("show"); facts.classList.add("show"); });
+  term.scrollTop = term.scrollHeight;
+  if (sc.draw && DRAW[sc.draw.type]){ canvas.classList.add("open"); await DRAW[sc.draw.type](sc.draw, dur); }
+  else { await sleep(dur); }
+}
+
+async function run(){
+  term.innerHTML=""; canvas.innerHTML=""; canvas.classList.remove("open");
+  $("#play").disabled = true;
+  for (const sc of PLAN.scenes){ await playScene(sc); await sleep(300); }
+  canvas.classList.remove("open");
+  $("#play").disabled = false; $("#play").textContent = "↻ Replay";
+}
+$("#play").onclick = run;
+</script>

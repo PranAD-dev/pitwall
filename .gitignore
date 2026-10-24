@@ -22,6 +22,7 @@ sellers/node_modules/
 
 # Generated world data (deterministic; regenerate with `make reset`)
 world/out/
+voice/plan.js
 *.tmp
 
 # OS

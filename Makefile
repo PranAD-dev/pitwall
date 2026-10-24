@@ -38,9 +38,16 @@ migrate: env ## Apply the full schema (idempotent)
 generate: env ## Generate the deterministic world + answer_key.json
 	$(UV) run pitwall world generate
 
-reset: env nuke up wait-db migrate generate ## FULL reset: wipe, start, migrate, regenerate world
+seed: env ## Seed demo work items the explainer narrates (fraud hold, add-on reject)
+	$(UV) run pitwall explain seed-demo
+
+reset: env nuke up wait-db migrate generate seed ## FULL reset: wipe, start, migrate, world, seed
 	@echo ""
 	@echo "world reset complete — $$(date)"
+
+explain: env ## Build + play the fraud-hold explanation, export the browser plan
+	$(UV) run pitwall explain plan WI-5602
+	$(UV) run pitwall explain export WI-5602 -o voice/plan.js
 
 demo: env ## Run the scripted demo scenario (final whistle cascade)
 	$(UV) run pitwall demo run

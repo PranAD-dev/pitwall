@@ -1,0 +1,9 @@
+# Voice stack (M7) — install only when you have LiveKit + Cartesia keys:
+#   uv pip install -r voice/requirements.txt
+# The offline explainer (`pitwall explain plan`) and voice/replay.html need none of this.
+livekit-agents[cartesia]~=1.8
+livekit-plugins-anthropic
+livekit-api
+fastapi>=0.110
+uvicorn>=0.29
+python-dotenv>=1.0
