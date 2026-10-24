@@ -176,7 +176,7 @@ function buildNavUI() {
   document.getElementById('pw-view').addEventListener('click', () => { focusBoard(cur()); hideMenu(); });
   document.getElementById('pw-prev').addEventListener('click', () => { focusBoard(cur() - 1); hideMenu(); });
   document.getElementById('pw-next').addEventListener('click', () => { focusBoard(cur() + 1); hideMenu(); });
-  document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); deactivateReport(); deactivateHistory(); if (window.__pwShowMenu) window.__pwShowMenu(); });
+  document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); deactivateReport(); deactivateHistory(); deactivateScore(); if (window.__pwShowMenu) window.__pwShowMenu(); });
   document.getElementById('pw-full').addEventListener('click', () => {
     const d = document.documentElement;
     if (document.fullscreenElement) document.exitFullscreen();
@@ -261,6 +261,43 @@ function deactivateHistory() {
 }
 window.__pwActivateHistory = activateHistory;
 window.__pwDeactivateHistory = deactivateHistory;
+
+// --- Scoreboard: scored vs the answer key (deck ① "is it real enough") ---
+let scoreReporter = null, scoreActive = false;
+const SCORE_SCREEN = 3;
+async function activateScore() {
+  if (!scoreReporter) return;
+  const m = scene.getObjectByName('big_screen_' + SCORE_SCREEN);
+  if (m) { m.material.map = scoreReporter.texture; m.material.needsUpdate = true; }
+  scoreActive = true;
+  focusBoard(SCORE_SCREEN);
+  if (window.__pwHideMenu) window.__pwHideMenu();
+  scoreReporter.idle('scoring against the answer key…');
+  try {
+    const d = await fetch('/api/score').then((r) => r.json());
+    if (d.error) { scoreReporter.idle('score unavailable — ' + d.error); return; }
+    scoreReporter.setTitle('Harbourside FC · 21 planted issues · answer key');
+    scoreReporter.showScene({
+      say: `Scored autonomously against the answer key — the agent never sees it: ${d.precision}% precision on auto-completed work, ${d.violations} must-not-auto-complete violations, ${d.recall_correct} of ${d.total} planted issues caught.`,
+      draw: { type: 'table', title: 'eval · scored vs the answer key',
+        columns: ['metric', 'result', 'target'],
+        rows: [
+          ['Precision on auto-completed', d.precision + '%', '100%'],
+          ['Must-not-auto-complete violations', String(d.violations), '0'],
+          ['Planted-issue recall', d.recall_correct + ' / ' + d.total, '—'],
+          ['Automation rate', d.automation + '%  (' + d.auto_completed + ' auto)', '—'],
+          ['Escalation quality', d.escalation + '%  (' + d.escalated + ' asked)', '—'],
+        ], highlight_row: 0 },
+    }, 0, 1);
+  } catch (e) { scoreReporter.idle('score backend offline — run `make fc`'); }
+}
+function deactivateScore() {
+  const m = scene.getObjectByName('big_screen_' + SCORE_SCREEN);
+  if (m && pillars[SCORE_SCREEN]) { m.material.map = pillars[SCORE_SCREEN].texture; m.material.needsUpdate = true; }
+  scoreActive = false;
+}
+window.__pwActivateScore = activateScore;
+window.__pwDeactivateScore = deactivateScore;
 window.__pwHistStep = (d) => { if (historyActive) showHistEvent(histIdx + d); };
 // ← → step the chain while history is open (and nothing else sees the keys)
 window.addEventListener('keydown', (e) => {
@@ -345,6 +382,9 @@ function setupField() {
   historyReporter = createReporter(1280, {   // the transaction-history billboard
     heading: 'PIT WALL ▸ TRANSACTION HISTORY', badge: 'APPEND-ONLY AUDIT · EVIDENCE',
     onair: false, idleHint: 'loading transaction history…' });
+  scoreReporter = createReporter(1280, {     // the scoreboard billboard
+    heading: 'PIT WALL ▸ SCORED VS ANSWER KEY', badge: 'IS IT REAL ENOUGH?',
+    onair: false, idleHint: 'scoring…' });
   // intro framing: the exact angle you picked (press "p" to re-capture)
   nav.dx = nav.tx = 44; nav.dy = nav.ty = 3; nav.dz = nav.tz = 0;
   nav.taz = nav.az = -1.592; nav.tpol = nav.pol = 0.233; nav.tr = nav.r = 96.2;
@@ -369,7 +409,7 @@ function frameUpdate(dt) {
   lighting.update(dt);
   if (stadium.update) stadium.update(dt);
   if (pitch.update) pitch.update(dt, match.state);
-  if (FIELD) { updateNav(dt); for (const p of pillars) p.update(dt); if (terminal && termActive) terminal.update(dt); if (reporter && reportActive) reporter.update(dt); if (historyReporter && historyActive) historyReporter.update(dt); } else rig.update(dt);
+  if (FIELD) { updateNav(dt); for (const p of pillars) p.update(dt); if (terminal && termActive) terminal.update(dt); if (reporter && reportActive) reporter.update(dt); if (historyReporter && historyActive) historyReporter.update(dt); if (scoreReporter && scoreActive) scoreReporter.update(dt); } else rig.update(dt);
   if (!FIELD) hud.update(dt);
   if (!FIELD) commentary.update(dt); // no voicelines on the empty field
   if (!FIELD) audio.update(dt, ex);  // and no crowd audio

@@ -212,7 +212,7 @@
       const openControl=e=>{if(e)e.preventDefault();if(window.__pwActivateTerm){window.__pwActivateTerm();}else{dismiss();}};
       const backToMenu=()=>{control.style.display='none';menu.style.display='flex';btn.style.display='none';};
       document.getElementById('m-control').addEventListener('click',openControl);
-      document.getElementById('m-score').addEventListener('click',dismiss);
+      document.getElementById('m-score').addEventListener('click',function(e){if(e)e.preventDefault();if(window.__pwActivateScore){window.__pwActivateScore();}else{dismiss();}});
       document.getElementById('m-board').addEventListener('click',dismiss);
       document.getElementById('m-explore').addEventListener('click',function(e){if(e)e.preventDefault();if(window.__pwActivateHistory){window.__pwActivateHistory();}else{dismiss();}});
       document.getElementById('c-close').addEventListener('click',backToMenu);
