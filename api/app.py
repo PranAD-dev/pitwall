@@ -10,11 +10,14 @@ gateway, denials are actually logged, the audit trail is actually queried.
 
 from __future__ import annotations
 
+import asyncio
+import json
+import threading
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from psycopg.rows import dict_row
 
 from pitwall.db import connect
@@ -214,8 +217,50 @@ def explain(wi: str) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# Free scenario — live agent trail streamed over SSE (deck slide 12)
+# --------------------------------------------------------------------------- #
+@app.get("/api/scenario/stream")
+async def scenario_stream(text: str) -> StreamingResponse:
+    """Run a free-text scenario and stream every think/run_sql/propose/gate/post/audit
+    step to the browser as Server-Sent Events. The agent runs in a worker thread
+    (it's blocking — Claude + DB); steps cross into the event loop via a queue."""
+    from pitwall.agent.scenario import run_scenario
+
+    loop = asyncio.get_event_loop()
+    q: asyncio.Queue = asyncio.Queue()
+
+    def emit(step: dict) -> None:
+        loop.call_soon_threadsafe(q.put_nowait, step)
+
+    def work() -> None:
+        try:
+            run_scenario(text, emit)
+        except Exception as e:  # noqa: BLE001
+            loop.call_soon_threadsafe(q.put_nowait, {"actor": "system", "kind": "error", "text": str(e)})
+        finally:
+            loop.call_soon_threadsafe(q.put_nowait, {"kind": "done"})
+
+    threading.Thread(target=work, daemon=True).start()
+
+    async def gen():
+        while True:
+            step = await q.get()
+            yield f"data: {json.dumps(step, default=str)}\n\n"
+            if step.get("kind") == "done":
+                break
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# --------------------------------------------------------------------------- #
 # Serve the frontend
 # --------------------------------------------------------------------------- #
 @app.get("/")
 def index() -> FileResponse:
+    return FileResponse(WEB / "scenario.html")
+
+
+@app.get("/match")
+def match_ui() -> FileResponse:
     return FileResponse(WEB / "football.html")

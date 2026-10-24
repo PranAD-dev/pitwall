@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pit Wall — scenario</title>
+<style>
+  :root{ --bg:#05080c; --panel:#0a0f16; --volt:#c6ff2e; --dim:rgba(255,255,255,.45);
+    --white:#eef3f7; --amber:#ffcf33; --red:#ff5564; --line:rgba(198,255,46,.16); }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--white);
+    font:14px/1.55 ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace;}
+  a{color:var(--volt);}
+  #top{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);}
+  #top .mark{font-weight:800;color:var(--volt);letter-spacing:.04em;font-size:18px;}
+  #top .sub{color:var(--dim);font-size:12px;}
+  #top .live{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dim);}
+  #top .dot{width:9px;height:9px;border-radius:50%;background:var(--volt);box-shadow:0 0 10px var(--volt);
+    animation:pulse 1.6s infinite;}
+  @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+  #bar{padding:14px 20px;border-bottom:1px solid var(--line);}
+  #row{display:flex;gap:10px;}
+  #q{flex:1;background:#0b1118;border:1px solid var(--line);border-radius:9px;color:var(--white);
+    padding:12px 14px;font:14px ui-monospace,monospace;outline:none;}
+  #q:focus{border-color:rgba(198,255,46,.6);}
+  #go{background:var(--volt);color:#05080c;border:0;border-radius:9px;padding:0 22px;font-weight:800;
+    cursor:pointer;letter-spacing:.03em;}
+  #go:disabled{opacity:.4;cursor:default;}
+  #presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px;}
+  .chip{font-size:12px;color:var(--dim);background:#0b1118;border:1px solid var(--line);
+    border-radius:20px;padding:6px 13px;cursor:pointer;transition:all .12s;}
+  .chip:hover{color:var(--volt);border-color:rgba(198,255,46,.5);}
+  #main{display:grid;grid-template-columns:1.6fr 1fr;gap:0;height:calc(100vh - 150px);}
+  @media(max-width:860px){#main{grid-template-columns:1fr;height:auto;}}
+  .pane{overflow:auto;padding:16px 20px;}
+  #trail{border-right:1px solid var(--line);}
+  .side{display:flex;flex-direction:column;}
+  .pane h3{margin:0 0 10px;font-size:11px;letter-spacing:.12em;color:var(--dim);font-weight:700;text-transform:uppercase;}
+  .step{margin:0 0 13px;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+  .lead{color:var(--volt);font-weight:700;}
+  .lead .verb{color:var(--dim);font-weight:400;margin-left:8px;}
+  .body{margin:3px 0 0 16px;white-space:pre-wrap;}
+  .think{color:var(--white);opacity:.82;}
+  .sql{color:var(--amber);}
+  .res{color:var(--dim);font-size:12.5px;margin-left:16px;}
+  .res .ok{color:var(--volt);} .res .err{color:var(--red);}
+  .prop .type{color:#8fd3ff;} .prop .why{color:var(--white);}
+  .post{color:var(--volt);font-weight:700;}
+  .esc{color:var(--amber);font-weight:700;}
+  .err{color:var(--red);}
+  .scenario{border-left:3px solid var(--volt);padding:8px 12px;background:rgba(198,255,46,.05);
+    border-radius:0 8px 8px 0;margin-bottom:16px;}
+  .scenario .m{color:var(--dim);font-size:11px;letter-spacing:.1em;text-transform:uppercase;}
+  #audit .arow{display:flex;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12.5px;}
+  #audit .at{color:var(--dim);} #audit .actor{color:#8fd3ff;min-width:150px;}
+  #audit .act{color:var(--volt);min-width:62px;} #audit .deny{color:var(--red);}
+  #audit .reason{color:var(--dim);}
+  #fc{border-top:1px solid var(--line);margin-top:14px;padding-top:12px;}
+  #fc .num{font-size:22px;font-weight:800;color:var(--volt);}
+  #fc .delta{font-size:12px;}
+  .up{color:var(--volt);} .down{color:var(--red);}
+  .muted{color:var(--dim);}
+</style>
+</head>
+<body>
+<div id="top">
+  <span class="mark">PIT WALL</span>
+  <span class="sub">Autonomous Transfer Finance · Harbourside FC</span>
+  <span class="live"><span class="dot"></span> live</span>
+</div>
+
+<div id="bar">
+  <div id="row">
+    <input id="q" placeholder="Describe a finance situation… e.g. 'a lookalike-domain email asks us to pay the next installment to a new IBAN'" />
+    <button id="go">RUN</button>
+  </div>
+  <div id="presets"></div>
+</div>
+
+<div id="main">
+  <div id="trail" class="pane">
+    <h3>Agent trail · think → run_sql → propose → gate → post</h3>
+    <div id="steps"></div>
+  </div>
+  <div class="side pane">
+    <div>
+      <h3>Audit trail · append-only · every transition a diff</h3>
+      <div id="audit"><div class="muted">— runs once the agent posts —</div></div>
+    </div>
+    <div id="fc" style="display:none">
+      <h3>Forecast impact · how this decision moved the numbers</h3>
+      <div id="fcbody"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PRESETS = [
+  ["Fraud · bank-detail change", "An email from a lookalike domain is asking us to pay the next Northgate transfer installment to a brand-new IBAN we have never used before"],
+  ["Add-on dispute", "The selling club invoiced us for a 25-appearance add-on bonus on a player we signed — check the match data and tell me if we actually owe it"],
+  ["Incoming fee short", "A 2,000,000 EUR incoming transfer fee on an international sale arrived about 5% short"],
+  ["Duplicate agent fee", "We received a second agent-fee invoice for the same amount and the same transfer as one we already have, with a reformatted number"],
+  ["Stale FX", "An installment was booked at the signing EUR/GBP rate but paid months later — is there an FX difference to book?"],
+];
+const presetsEl = document.getElementById('presets');
+PRESETS.forEach(([label, text]) => {
+  const c = document.createElement('span'); c.className = 'chip'; c.textContent = label;
+  c.onclick = () => { document.getElementById('q').value = text; run(); };
+  presetsEl.appendChild(c);
+});
+
+const stepsEl = document.getElementById('steps');
+const auditEl = document.getElementById('audit');
+const go = document.getElementById('go');
+const q = document.getElementById('q');
+let es = null;
+
+function el(cls, html){ const d=document.createElement('div'); d.className=cls; if(html!=null) d.innerHTML=html; return d; }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+
+function addStep(step){
+  const k = step.kind;
+  if(k==='scenario'){
+    stepsEl.innerHTML='';
+    const d = el('scenario');
+    d.innerHTML = `<div class="m">scenario · ${esc(step.mode)} mode</div><div>${esc(step.text)}</div>`;
+    stepsEl.appendChild(d); return;
+  }
+  const s = el('step');
+  if(k==='think'){
+    s.innerHTML = `<div class="lead">▸ ai_agent<span class="verb">think</span></div><div class="body think">${esc(step.text)}</div>`;
+  } else if(k==='run_sql'){
+    s.innerHTML = `<div class="lead">▸ ai_agent<span class="verb">run_sql</span></div><div class="body sql">${esc(step.text)}</div>`;
+  } else if(k==='sql_result'){
+    const d = step.data||{};
+    if(d.error){ s.innerHTML = `<div class="res"><span class="err">◂ ${esc(d.error)}</span></div>`; }
+    else {
+      const rows=(d.rows||[]).slice(0,4).map(r=>`<div>&nbsp;&nbsp;${esc(JSON.stringify(r))}</div>`).join('');
+      s.innerHTML = `<div class="res"><span class="ok">◂ ${(d.rows||[]).length} row(s)</span> <span class="muted">${esc((d.columns||[]).join(', '))}</span>${rows}</div>`;
+    }
+  } else if(k==='propose'){
+    const data=step.data||{};
+    s.innerHTML = `<div class="lead">▸ ai_agent<span class="verb">propose</span></div>`+
+      `<div class="body prop"><span class="type">${esc(data.situation_type||'')}</span> <span class="muted">${esc(JSON.stringify(data.subject_refs||{}))}</span><div class="why">${esc(step.text)}</div></div>`;
+  } else if(k==='post'){
+    s.innerHTML = `<div class="post">▸ gateway post &nbsp; ${esc(step.text)}</div>`;
+  } else if(k==='escalate'){
+    s.innerHTML = `<div class="esc">▸ ${esc(step.text)}</div>`;
+  } else if(k==='error'){
+    s.innerHTML = `<div class="err">✗ ${esc(step.text)}</div>`;
+  } else if(k==='audit'){
+    renderAudit(step.data||[]); return;
+  } else { return; }
+  stepsEl.appendChild(s);
+  document.getElementById('trail').scrollTop = 1e9;
+}
+
+function renderAudit(rows){
+  if(!rows.length){ auditEl.innerHTML='<div class="muted">— escalated; no post to the ledger —</div>'; return; }
+  auditEl.innerHTML='';
+  rows.forEach(r=>{
+    const mark = r.allowed ? '✓' : '<span class="deny">✗ denied</span>';
+    auditEl.appendChild(el('arow',
+      `<span class="at">${esc(r.at)}</span><span class="actor">${esc(r.actor)}</span>`+
+      `<span class="act">${esc(r.action)}</span><span>${mark}</span>`+
+      `<span class="reason">${esc(r.reason||'')}</span>`));
+  });
+}
+
+function run(){
+  const text = q.value.trim(); if(!text) return;
+  if(es) es.close();
+  go.disabled=true; go.textContent='…';
+  auditEl.innerHTML='<div class="muted">— running —</div>';
+  stepsEl.innerHTML='';
+  es = new EventSource('/api/scenario/stream?text='+encodeURIComponent(text));
+  es.onmessage = (ev)=>{
+    const step = JSON.parse(ev.data);
+    if(step.kind==='done'){ es.close(); go.disabled=false; go.textContent='RUN'; return; }
+    addStep(step);
+  };
+  es.onerror = ()=>{ es.close(); go.disabled=false; go.textContent='RUN'; };
+}
+go.onclick = run;
+q.addEventListener('keydown', e=>{ if(e.key==='Enter') run(); });
+</script>
+</body>
+</html>
