@@ -165,10 +165,11 @@ function buildNavUI() {
     '<button id="pw-over">⤢ OVERVIEW</button>';
   document.body.appendChild(bar);
   const cur = () => (boardIdx < 0 ? 0 : boardIdx);
-  document.getElementById('pw-view').addEventListener('click', () => focusBoard(cur()));
-  document.getElementById('pw-prev').addEventListener('click', () => focusBoard(cur() - 1));
-  document.getElementById('pw-next').addEventListener('click', () => focusBoard(cur() + 1));
-  document.getElementById('pw-over').addEventListener('click', overview);
+  const hideMenu = () => { if (window.__pwHideMenu) window.__pwHideMenu(); };
+  document.getElementById('pw-view').addEventListener('click', () => { focusBoard(cur()); hideMenu(); });
+  document.getElementById('pw-prev').addEventListener('click', () => { focusBoard(cur() - 1); hideMenu(); });
+  document.getElementById('pw-next').addEventListener('click', () => { focusBoard(cur() + 1); hideMenu(); });
+  document.getElementById('pw-over').addEventListener('click', () => { overview(); if (window.__pwShowMenu) window.__pwShowMenu(); });
 }
 let pillars = [];
 function setupField() {

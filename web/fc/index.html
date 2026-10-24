@@ -181,6 +181,8 @@
       document.getElementById('m-explore').addEventListener('click',dismiss);
       document.getElementById('c-close').addEventListener('click',backToMenu);
       btn.addEventListener('click',backToMenu);
+      window.__pwShowMenu=backToMenu;   // OVERVIEW brings the 4 cards back
+      window.__pwHideMenu=dismiss;       // VIEW BOARD / prev / next hide them
     })();
     // control-room run logic — streams from the Pit Wall backend, renders in-stadium
     (function(){
