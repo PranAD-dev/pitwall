@@ -35,6 +35,19 @@
       radial-gradient(130% 100% at 50% 34%, transparent 58%, rgba(2,5,4,.78) 100%);}
   #bg .grain{position:absolute;inset:0;opacity:.35;mix-blend-mode:overlay;background-size:3px 3px;
       background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px);}
+  /* striker mini-scene in the empty REVIEW state — one looping shot, ~3.4s */
+  .shotscene{width:360px;max-width:70%;margin:0 auto 22px;display:block;
+             filter:drop-shadow(0 0 10px rgba(198,255,46,.18));}
+  .sc-striker{transform-box:view-box;transform-origin:150px 172px;animation:sway 3.4s ease-in-out infinite;}
+  .sc-kleg{transform-box:view-box;transform-origin:150px 138px;animation:kick 3.4s cubic-bezier(.5,0,.3,1) infinite;}
+  .sc-ball{transform-box:view-box;transform-origin:170px 172px;animation:shoot 3.4s cubic-bezier(.4,0,.2,1) infinite;
+           filter:drop-shadow(0 0 6px #c6ff2e);}
+  .sc-flash{animation:flash 3.4s linear infinite;}
+  @keyframes kick{0%,42%{transform:rotate(0)}54%{transform:rotate(-36deg)}62%{transform:rotate(48deg)}76%,100%{transform:rotate(0)}}
+  @keyframes shoot{0%,60%{transform:translate(0,0);opacity:1}80%{transform:translate(58px,-96px) scale(.72);opacity:1}
+                   83%{opacity:0}92%{transform:translate(0,0);opacity:0}94%,100%{transform:translate(0,0);opacity:1}}
+  @keyframes flash{0%,78%{opacity:0}81%{opacity:.22}89%{opacity:0}100%{opacity:0}}
+  @keyframes sway{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.5px)}}
 
   /* ---------- shell ---------- */
   .wrap{position:relative;z-index:1;height:100vh;display:flex;flex-direction:column;padding:16px;gap:14px;}
@@ -138,10 +151,11 @@
   .aud .who{font-family:"Rajdhani";letter-spacing:.02em;min-width:140px;font-weight:600;}
   .aud .did{font-size:13px;} .aud .did.deny{color:var(--red);} .aud .did.ok{color:var(--turf);} .aud .rsn{color:var(--dim);font-size:12.5px;}
   .empty{color:var(--dim);text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;
-         min-height:50vh;line-height:1.9;font-size:14.5px;}
+         min-height:54vh;line-height:1.9;font-size:14.5px;}
   .empty .big{font-family:"Rajdhani";font-weight:700;font-size:20px;letter-spacing:.04em;color:var(--ink);margin-bottom:10px;}
   .spin{font-family:"Rajdhani";letter-spacing:.1em;color:var(--volt);padding:24px 0;}
-  @media (prefers-reduced-motion:reduce){ .run{animation:none;} .liv .d{animation:none;} .step,.scene,.aud{transition:none;opacity:1;transform:none;} }
+  @media (prefers-reduced-motion:reduce){ .run{animation:none;} .liv .d{animation:none;}
+    .striker,.kleg,.ball,.goalflash{animation:none;} .step,.scene,.aud{transition:none;opacity:1;transform:none;} }
 </style>
 </head>
 <body>
@@ -215,10 +229,7 @@
     </div>
     <div class="panel">
       <div class="ph">REVIEW <span class="n">VAR</span></div>
-      <div class="scroll rev"><div id="result"><div class="empty">
-        <div class="big">Pick a move</div>
-        Every decision runs live through the gateway on your cloud ledger —<br>and shows its card.
-      </div></div></div>
+      <div class="scroll rev"><div id="result"></div></div>
     </div>
   </div>
 </div>
@@ -262,7 +273,31 @@ async function loadQueue(){
     </div>`).join("");
   document.querySelectorAll(".card").forEach(e=>e.onclick=()=>showAudit(e.dataset.id));
 }
-function refresh(){ loadStats(); loadFeed(); loadQueue(); }
+const SHOT_SVG = `
+<svg class="shotscene" viewBox="0 0 300 200" aria-hidden="true">
+  <defs><pattern id="snet" width="13" height="13" patternUnits="userSpaceOnUse">
+    <path d="M0 0 L13 13 M13 0 L0 13" stroke="rgba(206,255,120,.26)" stroke-width="0.6"/></pattern></defs>
+  <!-- goal -->
+  <polygon points="70,40 250,40 250,155 70,155" fill="url(#snet)"/>
+  <rect class="sc-flash" x="70" y="40" width="180" height="115" fill="#c6ff2e" opacity="0"/>
+  <rect x="67" y="38" width="6" height="119" rx="2" fill="rgba(238,243,247,.92)"/>
+  <rect x="247" y="38" width="6" height="119" rx="2" fill="rgba(238,243,247,.92)"/>
+  <rect x="67" y="38" width="186" height="6" rx="2" fill="rgba(238,243,247,.92)"/>
+  <line x1="0" y1="170" x2="300" y2="170" stroke="rgba(255,255,255,.12)" stroke-width="1.5"/>
+  <!-- striker -->
+  <g class="sc-striker"><g stroke="rgba(238,243,247,.92)" stroke-width="4" stroke-linecap="round" fill="none">
+    <circle cx="150" cy="98" r="9" fill="rgba(238,243,247,.92)" stroke="none"/>
+    <line x1="150" y1="107" x2="150" y2="140"/>
+    <line x1="150" y1="116" x2="135" y2="132"/>
+    <line x1="150" y1="116" x2="164" y2="110"/>
+    <line x1="150" y1="140" x2="140" y2="172"/>
+    <g class="sc-kleg"><line x1="150" y1="140" x2="168" y2="170" stroke="#c6ff2e"/></g>
+  </g></g>
+  <circle class="sc-ball" cx="172" cy="170" r="6" fill="#c6ff2e"/>
+</svg>`;
+const EMPTY = `<div class="empty">${SHOT_SVG}<div class="big">Pick a move</div>
+  Every decision runs live through the gateway on your cloud ledger —<br>and shows its card.</div>`;
+function refresh(){ loadStats(); loadFeed(); loadQueue(); if(!activeWi&&!$("#result").innerHTML) setResult(EMPTY); }
 async function reveal(sel){ for(const n of document.querySelectorAll(sel)){ n.classList.add("show"); await sleep(105);} }
 function setResult(h){ $("#result").innerHTML=h; }
 function busy(l){ setResult(`<div class="spin">● ${l}…</div>`); }
