@@ -47,6 +47,9 @@ retrieval: env ## (Re)build the Moss semantic indexes from Tiger (no-op if Moss 
 tickets: env ## Load matchday/season ticket sales + forecast snapshots into golden (no world-regen)
 	$(UV) run python scripts/seed_tickets_forecast.py
 
+payroll: env ## Recalibrate player wages + add managers/coaching staff (payroll, no world-regen)
+	$(UV) run python scripts/seed_payroll.py
+
 reset: env nuke up wait-db migrate generate seed retrieval ## FULL reset: wipe, start, migrate, world, seed, index (LOCAL docker)
 	@echo ""
 	@echo "world reset complete — $$(date)"

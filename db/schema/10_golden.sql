@@ -178,6 +178,19 @@ CREATE TABLE IF NOT EXISTS golden.payroll_cost (
 );
 CREATE INDEX IF NOT EXISTS payroll_cost_month_idx ON golden.payroll_cost (month);
 
+-- Non-playing staff — managers & coaching/medical/recruitment staff. Names and roles
+-- are agent-readable (golden); their individual pay lives in payroll_private.staff_salary,
+-- which the agent is denied (same wall as players). Loaded by scripts/seed_payroll.py.
+CREATE TABLE IF NOT EXISTS golden.staff (
+    id          text PRIMARY KEY,
+    name        text NOT NULL,
+    role        text NOT NULL,          -- head_coach|assistant_coach|gk_coach|sporting_director|…
+    department  text NOT NULL DEFAULT 'football',  -- football|medical|analysis|recruitment
+    nationality text,
+    joined_at   date,
+    raw_ref     text
+);
+
 -- ---- hypertables (time-series) -------------------------------------------
 CREATE TABLE IF NOT EXISTS golden.bank_transaction (
     id                   text NOT NULL,
