@@ -79,6 +79,7 @@ class Settings(BaseSettings):
             "gateway": self.pitwall_gateway_db_password,
             "sync": self.pitwall_sync_db_password,
             "voice": self.pitwall_voice_db_password,
+            "retrieval": self.pitwall_retrieval_db_password,
         }
 
     def _build_url(self, user: str, password: str) -> str:
@@ -125,6 +126,16 @@ class Settings(BaseSettings):
     @property
     def x402_is_live(self) -> bool:
         return self.pitwall_x402_mode == "testnet" and bool(self.cdp_api_key_id)
+
+    @property
+    def moss_is_live(self) -> bool:
+        if self.pitwall_moss_mode == "off":
+            return False
+        return bool(self.moss_project_id and self.moss_project_key)  # auto
+
+    def moss_index(self, name: str) -> str:
+        """Fully-qualified Moss index name, e.g. 'pitwall_clauses'."""
+        return f"{self.pitwall_moss_index_prefix}_{name}"
 
 
 @lru_cache

@@ -184,7 +184,7 @@ function buildNavUI() {
   });
 }
 let pillars = [];
-let terminal = null, termActive = false;
+let terminal = null, termActive = false, termBuf = '';
 const TERM_SCREEN = 0;   // which big screen becomes the terminal
 
 function activateTerminal() {
@@ -192,11 +192,12 @@ function activateTerminal() {
   const m = scene.getObjectByName('big_screen_' + TERM_SCREEN);
   if (m) { m.material.map = terminal.texture; m.material.needsUpdate = true; }
   termActive = true;
+  termBuf = ''; terminal.setPrompt('');
   focusBoard(TERM_SCREEN);          // normal framing (⛶ for fullscreen on demand)
   if (window.__pwHideMenu) window.__pwHideMenu();
   if (window.__pwShowTermBar) window.__pwShowTermBar();
   terminal.clear();
-  terminal.write('type a scenario below and press enter  ▸', TCOL.DIM);
+  terminal.write('just start typing — Enter runs it, Esc exits', TCOL.DIM);
 }
 function deactivateTerminal() {
   const m = scene.getObjectByName('big_screen_' + TERM_SCREEN);
@@ -247,6 +248,22 @@ window.__pwRunTerm = function (text) {
   };
   es.onerror = () => { es.close(); terminal.write('(backend offline — run make fc)', TCOL.RED); };
 };
+// type straight into the billboard: while the terminal is live, keystrokes build the
+// on-board prompt and nothing else in the scene sees them (capture phase + stop).
+function syncPrompt() { if (terminal) terminal.setPrompt(termBuf); }
+window.__pwSetTermPrompt = (t) => { termBuf = String(t == null ? '' : t); syncPrompt(); };
+window.__pwSubmitTerm = () => { const v = termBuf.trim(); termBuf = ''; syncPrompt(); if (v) window.__pwRunTerm(v); };
+window.addEventListener('keydown', (e) => {
+  if (!termActive) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;        // leave shortcuts / paste alone
+  const k = e.key;
+  if (k === 'Enter') window.__pwSubmitTerm();
+  else if (k === 'Backspace') { termBuf = termBuf.slice(0, -1); syncPrompt(); }
+  else if (k === 'Escape') { termBuf = ''; deactivateTerminal(); }
+  else if (k.length === 1) { termBuf += k; syncPrompt(); }
+  else return;                                            // arrows, F-keys, etc. — ignore
+  e.preventDefault(); e.stopImmediatePropagation();
+}, true);
 
 function setupField() {
   // full match playing in the background (all 22 + referee)

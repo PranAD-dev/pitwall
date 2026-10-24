@@ -256,31 +256,30 @@
     #term-bar .trow{display:flex;align-items:center;gap:6px;background:rgba(7,11,17,.85);border:1px solid rgba(198,255,46,.45);
       padding:4px 4px 4px 14px;width:min(86vw,660px);clip-path:polygon(0 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%);}
     #term-bar .tprompt{color:#c6ff2e;font-weight:800;}
-    #term-bar #term-in{flex:1;background:transparent;border:0;color:#eef3f7;font:14px ui-monospace,monospace;outline:none;padding:10px 4px;}
+    #term-bar .thint{flex:1;color:rgba(255,255,255,.55);font:13px ui-monospace,monospace;padding:10px 4px;}
+    #term-bar .thint b{color:#c6ff2e;font-weight:800;}
     #term-bar #term-go{background:#c6ff2e;color:#05080c;border:0;padding:9px 16px;font-weight:800;cursor:pointer;letter-spacing:.04em;}
     #term-bar #term-close{background:transparent;color:rgba(255,255,255,.5);border:0;font-size:15px;cursor:pointer;padding:0 8px;}
   </style>
   <div id="term-bar">
     <div class="tchips" id="t-chips"></div>
     <div class="trow"><span class="tprompt">▸</span>
-      <input id="term-in" placeholder="type a finance scenario and press enter…" autocomplete="off" />
+      <span class="thint">type on the board — <b>Enter</b> runs · <b>Esc</b> exits · or tap a preset ↑</span>
       <button id="term-go">RUN</button><button id="term-close">✕</button></div>
   </div>
   <script>
     (function(){
-      const bar=document.getElementById('term-bar'), inp=document.getElementById('term-in');
-      window.__pwShowTermBar=function(){bar.style.display='flex';setTimeout(function(){inp.focus();},60);};
+      const bar=document.getElementById('term-bar');
+      window.__pwShowTermBar=function(){bar.style.display='flex';};
       window.__pwHideTermBar=function(){bar.style.display='none';};
-      const go=function(){const v=inp.value.trim();if(v&&window.__pwRunTerm){window.__pwRunTerm(v);inp.value='';}};
-      document.getElementById('term-go').onclick=go;
-      inp.addEventListener('keydown',function(e){if(e.key==='Enter')go();});
+      document.getElementById('term-go').onclick=function(){if(window.__pwSubmitTerm)window.__pwSubmitTerm();};
       document.getElementById('term-close').onclick=function(){if(window.__pwDeactivateTerm)window.__pwDeactivateTerm();};
       const PRE=[['Fraud','An email from a lookalike domain is asking us to pay the next Northgate transfer installment to a brand-new IBAN we have never used before'],
         ['Add-on','The selling club invoiced us for a 25-appearance add-on bonus on a player we signed — check the match data and tell me if we actually owe it'],
         ['Fee short','A 2,000,000 EUR incoming transfer fee on an international sale arrived about 5% short'],
         ['Duplicate','We received a second agent-fee invoice for the same amount and transfer as one we already have, with a reformatted number']];
       const ch=document.getElementById('t-chips');
-      PRE.forEach(function(p){const b=document.createElement('span');b.className='tchip';b.textContent=p[0];b.onclick=function(){inp.value=p[1];go();};ch.appendChild(b);});
+      PRE.forEach(function(p){const b=document.createElement('span');b.className='tchip';b.textContent=p[0];b.onclick=function(){if(window.__pwSetTermPrompt)window.__pwSetTermPrompt(p[1]);};ch.appendChild(b);});
     })();
   </script>
 
