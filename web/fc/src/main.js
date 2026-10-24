@@ -82,7 +82,7 @@ window.__APP = { scene, renderer, ball, teams, match, rig, commentary, audio, TH
 
 // --- Empty field view: the stadium + pitch, every player and the ball removed,
 // with free orbit navigation (drag to rotate · scroll to zoom). ---
-const OVERVIEW = { az: Math.PI, pol: 0.26, r: 105, x: 0, y: 3, z: 0 };
+const OVERVIEW = { az: -1.592, pol: 0.233, r: 96.2, x: 44, y: 3, z: 0 };
 const nav = {
   az: OVERVIEW.az, pol: OVERVIEW.pol, r: OVERVIEW.r,          // current orbit
   taz: OVERVIEW.az, tpol: OVERVIEW.pol, tr: OVERVIEW.r,       // desired orbit
