@@ -160,6 +160,24 @@ CREATE TABLE IF NOT EXISTS golden.forecast_snapshot (
 );
 CREATE INDEX IF NOT EXISTS forecast_as_of_idx ON golden.forecast_snapshot (as_of);
 
+-- Aggregate payroll cost — headcount + the monthly wage bill, NO individual salaries.
+-- The agent handles payroll at THIS aggregate level (it feeds the squad-cost ratio) and
+-- computes bonus accruals from clauses + match events; per-player pay stays in
+-- payroll_private.salary, which the agent is denied. The limit is in the database, not
+-- the prompt. Loaded by scripts/seed_tickets_forecast.py.
+CREATE TABLE IF NOT EXISTS golden.payroll_cost (
+    id              text PRIMARY KEY,
+    month           date NOT NULL,
+    headcount       int NOT NULL,
+    base_wage_bill  numeric(14,2) NOT NULL,
+    bonus_accrual   numeric(14,2) NOT NULL DEFAULT 0,
+    employer_oncost numeric(14,2) NOT NULL DEFAULT 0,
+    total           numeric(14,2) NOT NULL,
+    currency        text NOT NULL DEFAULT 'EUR',
+    note            text
+);
+CREATE INDEX IF NOT EXISTS payroll_cost_month_idx ON golden.payroll_cost (month);
+
 -- ---- hypertables (time-series) -------------------------------------------
 CREATE TABLE IF NOT EXISTS golden.bank_transaction (
     id                   text NOT NULL,

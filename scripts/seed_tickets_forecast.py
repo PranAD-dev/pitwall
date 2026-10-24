@@ -130,8 +130,28 @@ def main() -> None:
             "INSERT INTO golden.forecast_snapshot (id,as_of,horizon,projected_cash,revenue_ytd,"
             "revenue_forecast,wage_bill,squad_cost_ratio,ticket_revenue,note,raw_ref) "
             "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NULL)", snaps)
+
+        # ---------- payroll cost (AGGREGATE only — never an individual salary) ----------
+        cur.execute("SELECT count(*) FROM payroll_private.salary")   # headcount only
+        headcount = cur.fetchone()[0] or 40
+        base_month = WAGE_AGG_ANNUAL / 12.0
+        pc = []
+        for pid, start, end in periods:
+            rng = _rng(pid + "-pay")
+            # appearance/goal bonus accruals rise during match months (agent computes these)
+            bonus = base_month * (0.02 + rng.random() * 0.03) if start.month in (8, 9, 10, 11, 12, 1, 2, 3, 4, 5) else 0.0
+            oncost = base_month * 0.14
+            total = base_month + bonus + oncost
+            pc.append((f"pay-{pid}", end, headcount, round(base_month, 2), round(bonus, 2),
+                       round(oncost, 2), round(total, 2), "EUR",
+                       f"{headcount} registered players · aggregate wage bill (no individual salaries)"))
+        cur.execute("TRUNCATE golden.payroll_cost")
+        cur.executemany(
+            "INSERT INTO golden.payroll_cost (id,month,headcount,base_wage_bill,bonus_accrual,"
+            "employer_oncost,total,currency,note) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)", pc)
+
         c.commit()
-        print(f"ticket_sale: {len(tix)} rows · forecast_snapshot: {len(snaps)} rows")
+        print(f"ticket_sale: {len(tix)} rows · forecast_snapshot: {len(snaps)} rows · payroll_cost: {len(pc)} rows")
 
 
 if __name__ == "__main__":
