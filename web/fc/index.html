@@ -189,11 +189,12 @@
     // menu / control / stadium toggling
     (function(){
       const menu=document.getElementById('menu'), btn=document.getElementById('menu-btn'), control=document.getElementById('control');
-      const openControl=e=>{if(e)e.preventDefault();menu.style.display='none';control.style.display='flex';btn.style.display='block';};
       const dismiss=e=>{if(e)e.preventDefault();menu.style.display='none';control.style.display='none';btn.style.display='block';};
+      // Control room = fly the camera to the terminal billboard (in-world), not an overlay
+      const openControl=e=>{if(e)e.preventDefault();if(window.__pwActivateTerm){window.__pwActivateTerm();}else{dismiss();}};
       const backToMenu=()=>{control.style.display='none';menu.style.display='flex';btn.style.display='none';};
       document.getElementById('m-control').addEventListener('click',openControl);
-      document.getElementById('m-score').addEventListener('click',openControl);
+      document.getElementById('m-score').addEventListener('click',dismiss);
       document.getElementById('m-board').addEventListener('click',dismiss);
       document.getElementById('m-explore').addEventListener('click',dismiss);
       document.getElementById('c-close').addEventListener('click',backToMenu);

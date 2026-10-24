@@ -129,16 +129,17 @@ function setNavLabel() {
   const el = document.getElementById('pw-label');
   if (el) el.textContent = boardIdx < 0 ? 'OVERVIEW' : `BOARD ${boardIdx + 1}/${(stadium.screenViews || []).length}`;
 }
-function focusBoard(i) {
+function focusBoard(i, tight) {
   const views = stadium.screenViews || [];
   if (!views.length) return;
   boardIdx = ((i % views.length) + views.length) % views.length;
   const v = views[boardIdx];
-  const d = Math.max(9, v.w * 1.6);                 // back off to frame the whole board
+  const d = tight ? Math.max(6, v.w * 1.12)         // tight: the board fills the screen
+                  : Math.max(9, v.w * 1.6);         // normal: frame the whole board w/ margin
   const ox = v.nx * d, oz = v.nz * d;               // sit in front of it (pitch side)
   nav.dx = v.pos.x; nav.dy = v.pos.y; nav.dz = v.pos.z;
   nav.tr = Math.hypot(ox, oz);
-  nav.tpol = 0.06;                                  // ~level with the board, a hair above
+  nav.tpol = tight ? 0.02 : 0.06;                   // head-on when tight
   nav.taz = Math.atan2(ox, oz);
   setNavLabel();
 }
@@ -163,7 +164,7 @@ function buildNavUI() {
   bar.id = 'pwnav';
   bar.innerHTML = '<button id="pw-term">⌨ SCENARIO</button><button id="pw-view">◎ VIEW BOARD</button>' +
     '<button id="pw-prev">←</button><span id="pw-label">OVERVIEW</span><button id="pw-next">→</button>' +
-    '<button id="pw-over">⤢ OVERVIEW</button>';
+    '<button id="pw-over">⤢ OVERVIEW</button><button id="pw-full" title="fullscreen">⛶</button>';
   document.body.appendChild(bar);
   const cur = () => (boardIdx < 0 ? 0 : boardIdx);
   const hideMenu = () => { if (window.__pwHideMenu) window.__pwHideMenu(); };
@@ -172,6 +173,11 @@ function buildNavUI() {
   document.getElementById('pw-next').addEventListener('click', () => { focusBoard(cur() + 1); hideMenu(); });
   document.getElementById('pw-term').addEventListener('click', activateTerminal);
   document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); if (window.__pwShowMenu) window.__pwShowMenu(); });
+  document.getElementById('pw-full').addEventListener('click', () => {
+    const d = document.documentElement;
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (d.requestFullscreen) d.requestFullscreen();
+  });
 }
 let pillars = [];
 let terminal = null, termActive = false;
@@ -182,7 +188,7 @@ function activateTerminal() {
   const m = scene.getObjectByName('big_screen_' + TERM_SCREEN);
   if (m) { m.material.map = terminal.texture; m.material.needsUpdate = true; }
   termActive = true;
-  focusBoard(TERM_SCREEN);
+  focusBoard(TERM_SCREEN, true);   // fly in close so the board fills the screen
   if (window.__pwHideMenu) window.__pwHideMenu();
   if (window.__pwShowTermBar) window.__pwShowTermBar();
   terminal.clear();
@@ -195,6 +201,7 @@ function deactivateTerminal() {
   if (window.__pwHideTermBar) window.__pwHideTermBar();
 }
 window.__pwDeactivateTerm = deactivateTerminal;
+window.__pwActivateTerm = activateTerminal;   // menu "Control room" tile flies here
 window.__pwRunTerm = function (text) {
   if (!termActive) activateTerminal();
   terminal.clear();
