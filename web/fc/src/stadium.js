@@ -49,13 +49,12 @@ const TOWERS = [
   [1, 1], [1, -1], [-1, 1], [-1, -1],
 ].map(([sx, sz]) => new THREE.Vector3(sx * 70, 44, sz * 54));
 
-// Pit Wall financial ticker across the perimeter LED boards. Static figures for
-// now — wire these to live Pit Wall data (squad-cost cagg, cash position) later.
+// Perimeter LED sponsor boards — the hackathon partners + the club.
 const AD_BRANDS = [
-  'PIT WALL', 'SQUAD COST 68% / 70%', 'CASH £14.2M', 'TRANSFER PAYABLES £8.4M',
-  'AUTONOMOUS FINANCE', 'FFP HEADROOM £2.1M', 'EVIDENCE SPEND $0.42', 'HARBOURSIDE FC',
+  'HYPHENATE', 'TIGER DATA', 'MOSS', 'PIT WALL',
+  'HYPHENATE', 'TIGER DATA', 'MOSS', 'PIT WALL',
 ];
-const AD_HUES = [75, 82, 68, 75, 88, 75, 160, 75]; // volt-green family, one teal accent
+const AD_HUES = [22, 195, 95, 75, 22, 195, 95, 75]; // Hyphenate orange · Tiger blue · Moss green · Pit Wall volt
 
 const AD_H = 0.9;            // board face height (m)
 const AD_SEG = 8.6;          // nominal panel width (m)
