@@ -120,6 +120,15 @@
   #fc .pipe{display:flex;gap:14px;margin-top:12px;}
   #fc .pipe div{flex:1;} #fc .pipe .l{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;}
   #fc .pipe .n{font-size:17px;font-weight:800;color:var(--white);}
+  /* ---- agent memory / policies ---- */
+  #mem .prow{padding:9px 2px;border-bottom:1px solid rgba(255,255,255,.05);transition:all .3s;overflow:hidden;}
+  #mem .prow.hit{background:rgba(198,255,46,.12);box-shadow:inset 3px 0 0 var(--volt);padding-left:9px;}
+  #mem .pid{color:var(--volt);font-weight:700;font-family:ui-monospace,monospace;}
+  #mem .orig{font-size:8.5px;letter-spacing:.1em;padding:2px 7px;text-transform:uppercase;margin-left:7px;}
+  #mem .orig.learned{background:rgba(127,212,255,.14);color:var(--blue);}
+  #mem .orig.improved{background:rgba(198,255,46,.18);color:var(--volt);}
+  #mem .pev{color:var(--dim);font-size:11px;float:right;}
+  #mem .ptext{color:var(--white);opacity:.7;font-size:11.5px;margin-top:3px;}
   .muted{color:var(--dim);}
 </style>
 </head>
@@ -151,6 +160,10 @@
     <div id="fc" class="cut" style="background:var(--panel);padding:16px 18px;">
       <h3>Forecast impact · the 5th system</h3>
       <div id="fcbody"></div>
+    </div>
+    <div id="mem" class="cut" style="background:var(--panel);padding:16px 18px;">
+      <h3>Agent memory · policies in force · learns + improves</h3>
+      <div id="membody"><div class="muted">— loading —</div></div>
     </div>
   </div>
 </div>
@@ -207,7 +220,26 @@ async function loadKPIs(){
 }
 loadKPIs();
 
+async function loadPolicies(){
+  try{
+    const ps=await fetch('/api/policies').then(r=>r.json());
+    const body=document.getElementById('membody'); body.innerHTML='';
+    ps.filter(p=>p.auto).forEach(p=>{
+      const impr=p.origin==='self-improved';
+      const d=el('prow',
+        `<span class="pid">${esc(p.id)}</span><span class="orig ${impr?'improved':'learned'}">${impr?'SELF-IMPROVED':'LEARNED'}</span>`+
+        `<span class="pev">${p.evidence} precedents</span><div class="ptext">${esc(p.text)}</div>`);
+      d.dataset.pol=p.id; body.appendChild(d);
+    });
+  }catch(e){}
+}
+loadPolicies();
+
 function verdict(out){
+  if(out.policy){
+    const pid=out.policy.split(' ')[0];
+    document.querySelectorAll('#mem .prow').forEach(r=>r.classList.toggle('hit', r.dataset.pol===pid));
+  }
   const final=out.final||'', action=out.action||'';
   let cls='v-esc'; if(final==='POSTED')cls='v-post'; else if(final==='HELD')cls='v-held';
   const label=ACTION_LABEL[action]||final;
@@ -300,6 +332,7 @@ function run(){
   if(es)es.close();
   go.disabled=true; go.textContent='…';
   auditEl.innerHTML='<div class="muted">— running —</div>'; stepsEl.innerHTML=''; fcEl.style.display='none';
+  document.querySelectorAll('#mem .prow.hit').forEach(r=>r.classList.remove('hit'));
   es=new EventSource('/api/scenario/stream?text='+encodeURIComponent(text));
   es.onmessage=ev=>{const step=JSON.parse(ev.data);
     if(step.kind==='done'){es.close();go.disabled=false;go.textContent='RUN';return;} addStep(step);};

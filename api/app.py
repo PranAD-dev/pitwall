@@ -116,6 +116,23 @@ def forecast() -> dict:
     return snapshot()
 
 
+@app.get("/api/policies")
+def policies() -> list[dict]:
+    """The agent's memory in the DB — approved auto_approve rules, learned at onboarding
+    or self-improved from precedents (deck slides 12-13)."""
+    rows = _rows("SELECT DISTINCT ON (id) id, version, evidence_count, text, auto_approve, rule "
+                 "FROM work.policy WHERE status = 'approved' ORDER BY id, version DESC")
+    out = []
+    for r in rows:
+        rule = r["rule"] or {}
+        out.append({
+            "id": r["id"], "version": r["version"], "evidence": r["evidence_count"],
+            "text": r["text"], "auto": r["auto_approve"], "covers": rule.get("covers"),
+            "origin": "self-improved" if rule.get("precedents") else "learned",
+        })
+    return out
+
+
 @app.get("/api/audit/{subject}")
 def audit(subject: str) -> list[dict]:
     rows = _rows(
