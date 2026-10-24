@@ -167,7 +167,7 @@ function buildNavUI() {
   document.head.appendChild(style);
   const bar = document.createElement('div');
   bar.id = 'pwnav';
-  bar.innerHTML = '<button id="pw-view">◎ VIEW BOARD</button>' +
+  bar.innerHTML = '<button id="pw-auto">▶ AUTO RUN</button><button id="pw-view">◎ VIEW BOARD</button>' +
     '<button id="pw-prev">←</button><span id="pw-label">OVERVIEW</span><button id="pw-next">→</button>' +
     '<button id="pw-over">⤢ OVERVIEW</button><button id="pw-full" title="fullscreen">⛶</button>';
   document.body.appendChild(bar);
@@ -176,7 +176,8 @@ function buildNavUI() {
   document.getElementById('pw-view').addEventListener('click', () => { focusBoard(cur()); hideMenu(); });
   document.getElementById('pw-prev').addEventListener('click', () => { focusBoard(cur() - 1); hideMenu(); });
   document.getElementById('pw-next').addEventListener('click', () => { focusBoard(cur() + 1); hideMenu(); });
-  document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); deactivateReport(); deactivateHistory(); deactivateScore(); if (window.__pwShowMenu) window.__pwShowMenu(); });
+  document.getElementById('pw-auto').addEventListener('click', activateAuto);
+  document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); deactivateReport(); deactivateHistory(); deactivateScore(); deactivateAuto(); if (window.__pwShowMenu) window.__pwShowMenu(); });
   document.getElementById('pw-full').addEventListener('click', () => {
     const d = document.documentElement;
     if (document.fullscreenElement) document.exitFullscreen();
@@ -298,6 +299,56 @@ function deactivateScore() {
 }
 window.__pwActivateScore = activateScore;
 window.__pwDeactivateScore = deactivateScore;
+
+// --- Autonomous run: replay the 21 real decisions the agent made unattended ---
+let autoReporter = null, autoActive = false, autoTimer = null;
+const AUTO_SCREEN = 4;
+async function activateAuto() {
+  if (!autoReporter) return;
+  const m = scene.getObjectByName('big_screen_' + AUTO_SCREEN);
+  if (m) { m.material.map = autoReporter.texture; m.material.needsUpdate = true; }
+  autoActive = true;
+  focusBoard(AUTO_SCREEN);
+  if (window.__pwHideMenu) window.__pwHideMenu();
+  autoReporter.idle('starting autonomous run — no human input…');
+  let issues = [];
+  try { issues = (await fetch('/api/score').then((r) => r.json())).issues || []; } catch (e) { /* offline */ }
+  if (!autoActive) return;
+  if (!issues.length) { autoReporter.idle('autonomous run unavailable — run `make fc`'); return; }
+  let i = 0, correct = 0, viol = 0;
+  const log = [];
+  function step() {
+    if (!autoActive) return;
+    if (i >= issues.length) {
+      autoReporter.setTitle(`autonomous run complete · ${correct}/${issues.length} caught · ${viol} violations`);
+      autoReporter.showScene({
+        say: `Done. The agent processed ${issues.length} planted issues with no human input — ${correct} caught, ${viol} must-not-auto-complete violations. It auto-completes the clear ones and escalates the rest.`,
+        draw: { type: 'flow', title: 'autonomous', boxes: ['queue', `${issues.length} decided`, `${correct}/${issues.length} ✓`] },
+      }, issues.length, issues.length);
+      return;
+    }
+    const it = issues[i++];
+    if (it.correct) correct++;
+    if (it.violation) viol++;
+    log.push({ label: `${it.issue_id}  ${(it.action || '—').slice(0, 26)}`, ok: it.correct });
+    autoReporter.setTitle(`autonomous · ${i}/${issues.length} processed · ${correct} caught · ${viol} violations`);
+    autoReporter.showScene({
+      say: `${it.issue_id} (${it.type}) → agent decided ${it.action || '—'}, ${it.auto ? 'auto-completed' : 'escalated to a human'}. ${it.correct ? 'correct ✓' : 'WRONG ✗'}`,
+      draw: { type: 'checks', title: 'processing planted issues · no human input',
+              items: log.slice(-7).map((r) => ({ label: r.label, ok: r.ok })) },
+    }, i - 1, issues.length);
+    autoTimer = setTimeout(step, 1100);
+  }
+  step();
+}
+function deactivateAuto() {
+  const m = scene.getObjectByName('big_screen_' + AUTO_SCREEN);
+  if (m && pillars[AUTO_SCREEN]) { m.material.map = pillars[AUTO_SCREEN].texture; m.material.needsUpdate = true; }
+  autoActive = false;
+  if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+}
+window.__pwActivateAuto = activateAuto;
+window.__pwDeactivateAuto = deactivateAuto;
 window.__pwHistStep = (d) => { if (historyActive) showHistEvent(histIdx + d); };
 // ← → step the chain while history is open (and nothing else sees the keys)
 window.addEventListener('keydown', (e) => {
@@ -385,6 +436,9 @@ function setupField() {
   scoreReporter = createReporter(1280, {     // the scoreboard billboard
     heading: 'PIT WALL ▸ SCORED VS ANSWER KEY', badge: 'IS IT REAL ENOUGH?',
     onair: false, idleHint: 'scoring…' });
+  autoReporter = createReporter(1280, {      // the autonomous-run billboard
+    heading: 'PIT WALL ▸ AUTONOMOUS RUN', badge: 'NO HUMAN INPUT',
+    onair: false, idleHint: 'autonomous run…' });
   // intro framing: the exact angle you picked (press "p" to re-capture)
   nav.dx = nav.tx = 44; nav.dy = nav.ty = 3; nav.dz = nav.tz = 0;
   nav.taz = nav.az = -1.592; nav.tpol = nav.pol = 0.233; nav.tr = nav.r = 96.2;
@@ -409,7 +463,7 @@ function frameUpdate(dt) {
   lighting.update(dt);
   if (stadium.update) stadium.update(dt);
   if (pitch.update) pitch.update(dt, match.state);
-  if (FIELD) { updateNav(dt); for (const p of pillars) p.update(dt); if (terminal && termActive) terminal.update(dt); if (reporter && reportActive) reporter.update(dt); if (historyReporter && historyActive) historyReporter.update(dt); if (scoreReporter && scoreActive) scoreReporter.update(dt); } else rig.update(dt);
+  if (FIELD) { updateNav(dt); for (const p of pillars) p.update(dt); if (terminal && termActive) terminal.update(dt); if (reporter && reportActive) reporter.update(dt); if (historyReporter && historyActive) historyReporter.update(dt); if (scoreReporter && scoreActive) scoreReporter.update(dt); if (autoReporter && autoActive) autoReporter.update(dt); } else rig.update(dt);
   if (!FIELD) hud.update(dt);
   if (!FIELD) commentary.update(dt); // no voicelines on the empty field
   if (!FIELD) audio.update(dt, ex);  // and no crowd audio
