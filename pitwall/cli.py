@@ -403,6 +403,39 @@ def agent_onboard() -> None:
         Console().print(f"  [cyan]{o['policy']}[/] — {o['text']}  [dim]({o['reason']})[/]")
 
 
+@agent_app.command("improve")
+def agent_improve() -> None:
+    """Self-improving: human corrections → precedents → a generalized policy → controller approval."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from .agent.improve import MIN_TO_PROPOSE, improve_demo
+
+    c = Console()
+    res = improve_demo()
+    t = Table(title="Self-improving · corrections become precedents")
+    t.add_column("precedent", style="cyan"); t.add_column("work item"); t.add_column("correction")
+    for p in res["precedents"]:
+        corr = p["correction"]
+        desc = corr.get("did", "") + (f" · {corr['club']}" if corr.get("club") else "")
+        t.add_row(p["id"], p["work_item_id"], desc)
+    c.print(t)
+    o = res["outcome"]
+    c.print(f"\n[bold]agent[/] searched memory → [cyan]{o['count']}[/] similar precedents "
+            f"(needs ≥{MIN_TO_PROPOSE} to generalize)")
+    if o["status"] == "approved":
+        c.print(f"[bold]agent[/] proposed [cyan]{o['policy']}[/] citing {o['count']} precedents → "
+                f"[green]controller APPROVED[/]: {o['reason']}")
+        c.print(f"  [cyan]{o['policy']}[/] — {o.get('text', '')}")
+        c.print("[green]→ the same correction is never needed again — new auto_approve rule, logged.[/]")
+    elif o["status"] == "already_active":
+        c.print(f"[dim]{o['policy']} already generalized from these precedents (idempotent re-run).[/]")
+    elif o["status"] == "waiting":
+        c.print(f"[yellow]{o['reason']}[/]")
+    else:
+        c.print(f"[red]controller said no[/]: {o['reason']}")
+
+
 @agent_app.command("run")
 def agent_run(limit: int = typer.Option(None, "--limit", help="only the first N scenarios")) -> None:
     """Onboard, then autonomously process every planted scenario through the gateway."""
