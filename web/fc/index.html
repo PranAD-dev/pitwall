@@ -105,7 +105,7 @@
       cursor:pointer;letter-spacing:.06em;}
     #field-btn:hover{background:rgba(198,255,46,.16);border-color:#c6ff2e;}
     body.pw-clean #menu,body.pw-clean #pwnav,body.pw-clean #menu-btn,body.pw-clean #term-bar,
-    body.pw-clean #control,body.pw-clean #broadcast{display:none!important;}
+    body.pw-clean #hist-bar,body.pw-clean #control,body.pw-clean #broadcast{display:none!important;}
   </style>
   <div id="menu">
     <div class="mwrap">
@@ -122,8 +122,8 @@
           <div class="mno">03 · SCORED VS THE ANSWER KEY</div><div class="mt">21/21 · 100% · 0</div>
           <div class="md">21 planted issues · 100% precision on auto-completes · 0 must-not-auto-complete violations.</div><div class="mgo">▸</div></a>
         <a class="mtile" id="m-explore" href="#">
-          <div class="mno">04 · WALK THE GROUND</div><div class="mt">Explore the stadium</div>
-          <div class="md">Dismiss this menu and orbit the ground — six jumbotrons, each a live Pit Wall system.</div><div class="mgo">▸</div></a>
+          <div class="mno">04 · THE APPEND-ONLY LEDGER</div><div class="mt">Transaction history</div>
+          <div class="md">Step the chain of events for each decision — what changed, the agent's reasoning, the evidence. Walk it with ← →.</div><div class="mgo">▸</div></a>
       </div>
     </div>
   </div>
@@ -214,7 +214,7 @@
       document.getElementById('m-control').addEventListener('click',openControl);
       document.getElementById('m-score').addEventListener('click',dismiss);
       document.getElementById('m-board').addEventListener('click',dismiss);
-      document.getElementById('m-explore').addEventListener('click',dismiss);
+      document.getElementById('m-explore').addEventListener('click',function(e){if(e)e.preventDefault();if(window.__pwActivateHistory){window.__pwActivateHistory();}else{dismiss();}});
       document.getElementById('c-close').addEventListener('click',backToMenu);
       btn.addEventListener('click',backToMenu);
       window.__pwShowMenu=backToMenu;   // OVERVIEW brings the 4 cards back
@@ -297,6 +297,36 @@
         ['Duplicate','We received a second agent-fee invoice for the same amount and transfer as one we already have, with a reformatted number']];
       const ch=document.getElementById('t-chips');
       PRE.forEach(function(p){const b=document.createElement('span');b.className='tchip';b.textContent=p[0];b.onclick=function(){if(window.__pwSetTermPrompt)window.__pwSetTermPrompt(p[1]);};ch.appendChild(b);});
+    })();
+  </script>
+
+  <!-- ============ transaction-history navigator (steps the chain of events) ============ -->
+  <style>
+    #hist-bar{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:45;display:none;
+      align-items:center;gap:10px;background:rgba(7,11,17,.86);border:1px solid rgba(198,255,46,.45);
+      padding:8px 10px;font-family:ui-monospace,"SF Mono",Menlo,monospace;
+      clip-path:polygon(0 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%);}
+    #hist-bar button{background:rgba(5,8,12,.6);color:#c6ff2e;border:1px solid rgba(198,255,46,.4);
+      border-radius:7px;padding:8px 15px;font:14px ui-monospace,monospace;cursor:pointer;}
+    #hist-bar button:hover{background:rgba(198,255,46,.16);border-color:#c6ff2e;}
+    #hist-bar .hlabel{color:rgba(255,255,255,.82);min-width:200px;text-align:center;font-size:12px;letter-spacing:.05em;}
+    #hist-bar .hclose{color:rgba(255,255,255,.5)!important;border-color:rgba(255,255,255,.2)!important;}
+  </style>
+  <div id="hist-bar">
+    <button id="hist-prev">←</button>
+    <span class="hlabel" id="hist-label">event 1 / 1</span>
+    <button id="hist-next">→</button>
+    <button id="hist-close" class="hclose">✕</button>
+  </div>
+  <script>
+    (function(){
+      const bar=document.getElementById('hist-bar'), lab=document.getElementById('hist-label');
+      window.__pwShowHistBar=function(){bar.style.display='flex';};
+      window.__pwHideHistBar=function(){bar.style.display='none';};
+      window.__pwHistLabel=function(i,n,wi){lab.textContent=(wi?wi+'  ·  ':'')+'event '+i+' / '+n;};
+      document.getElementById('hist-prev').onclick=function(){if(window.__pwHistStep)window.__pwHistStep(-1);};
+      document.getElementById('hist-next').onclick=function(){if(window.__pwHistStep)window.__pwHistStep(1);};
+      document.getElementById('hist-close').onclick=function(){if(window.__pwDeactivateHistory)window.__pwDeactivateHistory();if(window.__pwShowMenu)window.__pwShowMenu();};
     })();
   </script>
 

@@ -12,7 +12,11 @@ const BG = '#05080c', VOLT = '#c6ff2e', WHITE = '#eef3f7', DIM = 'rgba(255,255,2
 const MONO = 'ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace';
 const SANS = '"Rajdhani",system-ui,sans-serif';
 
-export function createReporter(W = 1280) {
+export function createReporter(W = 1280, opts = {}) {
+  const HEADING = opts.heading || 'PIT WALL ▸ FINANCE REPORT';
+  const BADGE = opts.badge || 'LIVEKIT · CARTESIA';
+  const ONAIR = opts.onair !== false;
+  const IDLE_HINT = opts.idleHint || 'press  📺 REPORT  — a second agent narrates a decision here';
   const H = Math.round(W * 0.5625);
   const canvas = document.createElement('canvas');
   canvas.width = W; canvas.height = H;
@@ -112,15 +116,17 @@ export function createReporter(W = 1280) {
     // header
     c.textAlign = 'left'; c.textBaseline = 'alphabetic';
     c.fillStyle = VOLT; c.font = `800 ${Math.round(H * 0.044)}px ${MONO}`;
-    c.fillText('PIT WALL ▸ FINANCE REPORT', W * 0.035, H * 0.085);
-    // LIVEKIT · CARTESIA badge (top-right) + ON AIR dot
+    c.fillText(HEADING, W * 0.035, H * 0.085);
+    // badge (top-right) + optional ON AIR dot
     c.textAlign = 'right';
-    c.font = `800 ${Math.round(H * 0.024)}px ${MONO}`;
-    const on = Math.floor(t * 1.4) % 2 === 0;
-    c.fillStyle = on ? RED : 'rgba(255,85,100,.3)';
-    c.fillText('● ON AIR', W * 0.965, H * 0.06);
+    if (ONAIR) {
+      c.font = `800 ${Math.round(H * 0.024)}px ${MONO}`;
+      const on = Math.floor(t * 1.4) % 2 === 0;
+      c.fillStyle = on ? RED : 'rgba(255,85,100,.3)';
+      c.fillText('● ON AIR', W * 0.965, H * 0.06);
+    }
     c.fillStyle = BLUE; c.font = `700 ${Math.round(H * 0.02)}px ${MONO}`;
-    c.fillText('LIVEKIT · CARTESIA', W * 0.965, H * 0.09);
+    c.fillText(BADGE, W * 0.965, H * 0.09);
     c.textAlign = 'left';
     c.strokeStyle = 'rgba(198,255,46,.3)'; c.lineWidth = 2;
     c.beginPath(); c.moveTo(W * 0.035, H * 0.11); c.lineTo(W * 0.965, H * 0.11); c.stroke();
@@ -131,7 +137,7 @@ export function createReporter(W = 1280) {
     const L = W * 0.035, RW = W * 0.93;
     if (!scene) {
       c.fillStyle = DIM; c.font = `500 ${Math.round(H * 0.032)}px ${MONO}`;
-      c.fillText('press  📺 REPORT  — a second agent narrates a decision here', L, H * 0.3);
+      c.fillText(IDLE_HINT, L, H * 0.3);
     } else if (scene._idle) {
       c.fillStyle = DIM; c.font = `500 ${Math.round(H * 0.034)}px ${MONO}`;
       wrap(scene._idle, c.font, RW).forEach((ln, i) => c.fillText(ln, L, H * 0.3 + i * H * 0.05));

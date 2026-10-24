@@ -176,7 +176,7 @@ function buildNavUI() {
   document.getElementById('pw-view').addEventListener('click', () => { focusBoard(cur()); hideMenu(); });
   document.getElementById('pw-prev').addEventListener('click', () => { focusBoard(cur() - 1); hideMenu(); });
   document.getElementById('pw-next').addEventListener('click', () => { focusBoard(cur() + 1); hideMenu(); });
-  document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); deactivateReport(); if (window.__pwShowMenu) window.__pwShowMenu(); });
+  document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); deactivateReport(); deactivateHistory(); if (window.__pwShowMenu) window.__pwShowMenu(); });
   document.getElementById('pw-full').addEventListener('click', () => {
     const d = document.documentElement;
     if (document.fullscreenElement) document.exitFullscreen();
@@ -228,6 +228,49 @@ function deactivateReport() {
 }
 window.__pwActivateReport = activateReport;
 window.__pwDeactivateReport = deactivateReport;
+
+// --- Transaction history: step the chain of events (audit + reasoning + evidence) ---
+let historyReporter = null, historyEvents = [], histIdx = 0, historyActive = false;
+const HISTORY_SCREEN = 2;
+function showHistEvent(i) {
+  if (!historyEvents.length) { historyReporter.idle('no transaction history yet'); return; }
+  histIdx = ((i % historyEvents.length) + historyEvents.length) % historyEvents.length;
+  const e = historyEvents[histIdx];
+  historyReporter.setTitle((e.wi ? e.wi + ' · ' : '') + (e.title || 'transaction'));
+  historyReporter.showScene(e, histIdx, historyEvents.length);
+  if (window.__pwHistLabel) window.__pwHistLabel(histIdx + 1, historyEvents.length, e.wi || '');
+}
+async function activateHistory() {
+  if (!historyReporter) return;
+  const m = scene.getObjectByName('big_screen_' + HISTORY_SCREEN);
+  if (m) { m.material.map = historyReporter.texture; m.material.needsUpdate = true; }
+  historyActive = true;
+  focusBoard(HISTORY_SCREEN);
+  if (window.__pwHideMenu) window.__pwHideMenu();
+  if (window.__pwShowHistBar) window.__pwShowHistBar();
+  historyReporter.idle('loading transaction history…');
+  try { historyEvents = (await fetch('/api/history').then((r) => r.json())).events || []; }
+  catch (e) { historyEvents = []; }
+  histIdx = 0; showHistEvent(0);
+}
+function deactivateHistory() {
+  const m = scene.getObjectByName('big_screen_' + HISTORY_SCREEN);
+  if (m && pillars[HISTORY_SCREEN]) { m.material.map = pillars[HISTORY_SCREEN].texture; m.material.needsUpdate = true; }
+  historyActive = false;
+  if (window.__pwHideHistBar) window.__pwHideHistBar();
+}
+window.__pwActivateHistory = activateHistory;
+window.__pwDeactivateHistory = deactivateHistory;
+window.__pwHistStep = (d) => { if (historyActive) showHistEvent(histIdx + d); };
+// ← → step the chain while history is open (and nothing else sees the keys)
+window.addEventListener('keydown', (e) => {
+  if (!historyActive) return;
+  if (e.key === 'ArrowRight') showHistEvent(histIdx + 1);
+  else if (e.key === 'ArrowLeft') showHistEvent(histIdx - 1);
+  else if (e.key === 'Escape') { deactivateHistory(); overview(); if (window.__pwShowMenu) window.__pwShowMenu(); }
+  else return;
+  e.preventDefault(); e.stopImmediatePropagation();
+}, true);
 window.__pwRunTerm = function (text) {
   if (!termActive) activateTerminal();
   terminal.clear();
@@ -285,6 +328,9 @@ function setupField() {
   terminal = createTerminal(1024);   // ready to take over a screen on ⌨ SCENARIO
   reporter = createReporter(1280);   // the finance-report billboard (📺 REPORT)
   reportPlayer = createLiveReport({ reporter });
+  historyReporter = createReporter(1280, {   // the transaction-history billboard
+    heading: 'PIT WALL ▸ TRANSACTION HISTORY', badge: 'APPEND-ONLY AUDIT · EVIDENCE',
+    onair: false, idleHint: 'loading transaction history…' });
   // intro framing: the exact angle you picked (press "p" to re-capture)
   nav.dx = nav.tx = 44; nav.dy = nav.ty = 3; nav.dz = nav.tz = 0;
   nav.taz = nav.az = -1.592; nav.tpol = nav.pol = 0.233; nav.tr = nav.r = 96.2;
@@ -309,7 +355,7 @@ function frameUpdate(dt) {
   lighting.update(dt);
   if (stadium.update) stadium.update(dt);
   if (pitch.update) pitch.update(dt, match.state);
-  if (FIELD) { updateNav(dt); for (const p of pillars) p.update(dt); if (terminal && termActive) terminal.update(dt); if (reporter && reportActive) reporter.update(dt); } else rig.update(dt);
+  if (FIELD) { updateNav(dt); for (const p of pillars) p.update(dt); if (terminal && termActive) terminal.update(dt); if (reporter && reportActive) reporter.update(dt); if (historyReporter && historyActive) historyReporter.update(dt); } else rig.update(dt);
   if (!FIELD) hud.update(dt);
   if (!FIELD) commentary.update(dt); // no voicelines on the empty field
   if (!FIELD) audio.update(dt, ex);  // and no crowd audio

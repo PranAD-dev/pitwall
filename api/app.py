@@ -191,6 +191,69 @@ def audit(subject: str) -> list[dict]:
     return out
 
 
+@app.get("/api/history")
+def history() -> dict:
+    """Transaction history as a navigable chain of events. Every transaction gets its
+    append-only audit trail (what changed, step by step); transactions we can explain
+    also get the agent's grounded train-of-thought + evidence scenes layered in."""
+    from pitwall.explain import plan as planmod
+
+    recent = _rows(
+        "SELECT subject, max(at) mx FROM work.audit_log WHERE subject LIKE 'WI-%%' "
+        "GROUP BY subject ORDER BY mx DESC LIMIT 10")
+    order, seen = [], set()
+    for wi in ("WI-5602", "WI-5611"):            # the two rich, seeded decisions first
+        order.append(wi); seen.add(wi)
+    for r in recent:
+        if r["subject"] not in seen:
+            order.append(r["subject"]); seen.add(r["subject"])
+
+    events: list[dict] = []
+    txn = 0
+    for wi in order[:8]:
+        trail = _rows("SELECT at, actor, action, allowed, reason, diff FROM work.audit_log "
+                      "WHERE subject = %s ORDER BY at", (wi,))
+        if not trail:
+            continue
+        wrow = _rows("SELECT kind, state FROM work.work_item WHERE id = %s", (wi,))
+        kind = wrow[0]["kind"] if wrow else ""
+        state = wrow[0]["state"] if wrow else ""
+        title = f"{kind} — {state}" if kind else wi
+
+        # 1) the chain of what changed (append-only audit log) as a timeline table
+        rows = []
+        last_reason = ""
+        for e in trail:
+            diff = e["diff"] or {}
+            st = diff.get("state")
+            trans = f"{st['from']}→{st['to']}" if st else (e["action"] or "")
+            flag = "" if e["allowed"] else " ✗"
+            rows.append([str(e["at"])[11:19], e["actor"], trans + flag])
+            if e["reason"]:
+                last_reason = e["reason"]
+        events.append({
+            "wi": wi, "txn": txn, "head": True,
+            "title": title,
+            "say": f"{wi} — {kind or 'transaction'}" + (f", resolved {state}." if state else "."),
+            "draw": {"type": "table", "title": "what changed · append-only audit",
+                     "columns": ["time", "actor", "transition"], "rows": rows,
+                     "highlight_row": len(rows) - 1},
+            "meta": last_reason[:90],
+        })
+
+        # 2) the agent's train of thought + evidence, where we can ground it
+        try:
+            plan = planmod.build_plan(wi)
+            for sc in plan.get("scenes", []):
+                events.append({"wi": wi, "txn": txn, "title": plan.get("title", title),
+                               "say": sc.get("say", ""), "draw": sc.get("draw")})
+        except Exception:
+            pass
+        txn += 1
+
+    return {"count": len(events), "transactions": txn, "events": events}
+
+
 # --------------------------------------------------------------------------- #
 # Simulation buttons (run the REAL gateway)
 # --------------------------------------------------------------------------- #
