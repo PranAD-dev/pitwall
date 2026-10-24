@@ -172,13 +172,8 @@ function buildNavUI() {
 }
 let pillars = [];
 function setupField() {
-  // only a GK + 2 DF + 2 FW (home) play in the background; hide everyone else
-  const show = new Set();
-  const gk = teams.home.find((p) => p.role === 'GK');
-  if (gk) show.add(gk);
-  teams.home.filter((p) => p.role === 'DF').slice(0, 2).forEach((p) => show.add(p));
-  teams.home.filter((p) => p.role === 'FW').slice(0, 2).forEach((p) => show.add(p));
-  for (const p of teams.players) p.group.visible = show.has(p);
+  // full match playing in the background (all 22 + referee)
+  for (const p of teams.players) p.group.visible = true;
   // the ball stays — there's a game on behind the menu
   const hudEl = document.getElementById('hud');
   if (hudEl) hudEl.style.display = 'none';                // no scoreboard overlay
