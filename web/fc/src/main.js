@@ -271,6 +271,19 @@ window.addEventListener('keydown', (e) => {
   else return;
   e.preventDefault(); e.stopImmediatePropagation();
 }, true);
+// proof as it talks: print the ACTUAL rows the agent pulled, right under the query
+function termReceipt(d) {
+  if (!terminal) return;
+  if (d.error) { terminal.write('  ◂ ' + d.error, TCOL.RED); return; }
+  const rows = d.rows || [];
+  const cols = d.columns || (rows[0] ? Object.keys(rows[0]) : []);
+  terminal.write('  ◂ ' + rows.length + ' row' + (rows.length === 1 ? '' : 's') + (rows.length ? '  ▸ proof:' : ''), TCOL.DIM);
+  if (!rows.length) return;
+  const cap = (v) => { const x = v == null ? '' : String(v); return x.length > 15 ? x.slice(0, 14) + '…' : x; };
+  terminal.write('    ' + cols.map(cap).join('  '), TCOL.BLUE);
+  rows.slice(0, 3).forEach((r) => terminal.write('    ' + cols.map((c) => cap(r[c])).join('  '), TCOL.WHITE));
+  if (rows.length > 3) terminal.write('    … +' + (rows.length - 3) + ' more', TCOL.DIM);
+}
 window.__pwRunTerm = function (text) {
   if (!termActive) activateTerminal();
   terminal.clear();
@@ -279,9 +292,10 @@ window.__pwRunTerm = function (text) {
   es.onmessage = (e) => {
     const s = JSON.parse(e.data), k = s.kind;
     if (k === 'think') { terminal.write('ai_agent think', TCOL.VOLT); terminal.write('  ' + s.text, TCOL.WHITE); }
+    else if (k === 'recall') terminal.write('ai_agent recall_memory ▸ ' + s.text, TCOL.VOLT);
     else if (k === 'run_sql') { terminal.write('ai_agent run_sql', TCOL.VOLT); terminal.write('  ' + s.text, TCOL.AMBER); }
-    else if (k === 'sql_result') { const d = s.data || {}; terminal.write('  ◂ ' + (d.error ? d.error : ((d.rows || []).length + ' rows')), TCOL.DIM); }
-    else if (k === 'propose') { const d = s.data || {}; terminal.write('ai_agent propose: ' + (d.situation_type || ''), TCOL.BLUE); terminal.write('  ' + s.text, TCOL.WHITE); }
+    else if (k === 'sql_result') termReceipt(s.data || {});
+    else if (k === 'propose') { const d = s.data || {}; terminal.write('ai_agent propose: ' + (d.situation_type || ''), TCOL.BLUE); terminal.write('  ' + s.text, TCOL.WHITE); const sr = d.subject_refs || {}; const ks = Object.keys(sr); if (ks.length) terminal.write('  cites ▸ ' + ks.map((x) => x + '=' + sr[x]).join('  '), TCOL.DIM); }
     else if (k === 'post') terminal.write('gateway ▸ ' + s.text, TCOL.VOLT);
     else if (k === 'escalate') terminal.write('▸ ' + s.text, TCOL.AMBER);
     else if (k === 'forecast') { const im = (s.data || {}).impact; if (im && im.line) terminal.write('forecast ▸ ' + im.line, TCOL.VOLT); }
