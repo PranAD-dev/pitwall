@@ -1,0 +1,26 @@
+# Local TimescaleDB that mirrors Tiger Cloud (same extension, hyperfunctions via
+# the -ha image's timescaledb_toolkit). Swap to Tiger Cloud by setting
+# PITWALL_DATABASE_URL in .env; nothing else changes.
+services:
+  db:
+    image: timescale/timescaledb-ha:pg16
+    container_name: pitwall-db
+    environment:
+      POSTGRES_DB: ${PITWALL_DB_NAME:-pitwall}
+      POSTGRES_USER: ${PITWALL_DB_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${PITWALL_DB_SUPERUSER_PASSWORD:-pitwall_dev}
+      # Keep time-series predictable for the demo; everything stored in UTC.
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "${PITWALL_DB_PORT:-5432}:5432"
+    volumes:
+      - pitwall_pgdata:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PITWALL_DB_SUPERUSER:-postgres} -d ${PITWALL_DB_NAME:-pitwall}"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  pitwall_pgdata:

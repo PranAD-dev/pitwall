@@ -1,0 +1,58 @@
+# Pit Wall — one command resets the world, one runs the demo.
+# All Python runs through `uv` so there's nothing to activate.
+
+SHELL := /bin/bash
+UV := uv
+
+.DEFAULT_GOAL := help
+
+.PHONY: help env venv up down nuke wait-db migrate generate reset demo eval psql answer-key fmt
+
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+
+env: ## Create .env from template if missing
+	@test -f .env || (cp .env.example .env && echo "created .env from .env.example")
+
+venv: ## Create the uv virtualenv and install deps (Python pinned by .python-version)
+	$(UV) venv
+	$(UV) sync
+
+up: env ## Start TimescaleDB (docker)
+	docker compose up -d
+
+down: ## Stop TimescaleDB (keep data)
+	docker compose down
+
+nuke: ## Stop TimescaleDB and DELETE its volume (full wipe)
+	docker compose down -v
+
+wait-db: ## Block until the database accepts connections
+	@echo "waiting for database..."
+	@until docker compose exec -T db pg_isready -U $${PITWALL_DB_SUPERUSER:-postgres} -d $${PITWALL_DB_NAME:-pitwall} >/dev/null 2>&1; do sleep 1; done
+	@echo "database ready."
+
+migrate: env ## Apply the full schema (idempotent)
+	$(UV) run pitwall db migrate
+
+generate: env ## Generate the deterministic world + answer_key.json
+	$(UV) run pitwall world generate
+
+reset: env nuke up wait-db migrate generate ## FULL reset: wipe, start, migrate, regenerate world
+	@echo ""
+	@echo "world reset complete — $$(date)"
+
+demo: env ## Run the scripted demo scenario (final whistle cascade)
+	$(UV) run pitwall demo run
+
+eval: env ## Run Pit Wall over the whole timeline and score vs the answer key
+	$(UV) run pitwall eval run
+
+psql: ## Open a psql shell in the database container (superuser)
+	docker compose exec db psql -U $${PITWALL_DB_SUPERUSER:-postgres} -d $${PITWALL_DB_NAME:-pitwall}
+
+answer-key: ## Pretty-print the planted-issue answer key
+	$(UV) run pitwall world answer-key
+
+fmt: ## Format Python with ruff
+	$(UV) run ruff format pitwall

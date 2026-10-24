@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.uv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Env / secrets — NEVER commit real keys
+.env
+.env.local
+*.pem
+*.key
+
+# Node / web
+node_modules/
+web/dist/
+sellers/node_modules/
+*.log
+
+# Generated world data (deterministic; regenerate with `make reset`)
+world/out/
+*.tmp
+
+# OS
+.DS_Store

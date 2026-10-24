@@ -1,0 +1,32 @@
+[project]
+name = "pitwall"
+version = "0.1.0"
+description = "Pit Wall — autonomous transfer finance for a football club (Cal Hacks 13.0)"
+requires-python = ">=3.11"
+dependencies = [
+    "psycopg[binary]>=3.2",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "python-dotenv>=1.0",
+    "typer>=0.12",
+    "rich>=13.7",
+]
+
+[project.optional-dependencies]
+# Added as later milestones come online; kept optional so M0 installs lean.
+agent = ["anthropic>=0.39"]
+x402 = ["httpx>=0.27"]
+
+[project.scripts]
+pitwall = "pitwall.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pitwall"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
