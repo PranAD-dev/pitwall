@@ -436,6 +436,66 @@ def agent_improve() -> None:
         c.print(f"[red]controller said no[/]: {o['reason']}")
 
 
+@agent_app.command("scenario")
+def agent_scenario(
+    text: str = typer.Argument(..., help="a free-text finance scenario to run"),
+) -> None:
+    """Type a scenario → watch the live think→run_sql→propose→gate→post trail + audit."""
+    import time as _t
+
+    from rich.console import Console
+
+    from .agent.scenario import run_scenario
+
+    c = Console()
+
+    def emit(step: dict) -> None:
+        k = step["kind"]
+        if k == "scenario":
+            c.rule(f"[bold]SCENARIO[/]  [dim]({step['mode']} mode)[/]")
+            c.print(f"  [white]{step['text']}[/]\n")
+        elif k == "think":
+            c.print("[bold cyan]▸ ai_agent[/] [dim]think[/]")
+            for line in step["text"].strip().splitlines():
+                c.print(f"  [grey70]{line}[/]")
+        elif k == "run_sql":
+            c.print("[bold cyan]▸ ai_agent[/] [yellow]run_sql[/]")
+            for line in step["text"].strip().splitlines():
+                c.print(f"  [yellow]{line}[/]")
+        elif k == "sql_result":
+            d = step["data"]
+            if d.get("error"):
+                c.print(f"  [red]◂ {d['error']}[/]")
+            else:
+                rows = d.get("rows", [])
+                c.print(f"  [green]◂ {len(rows)} row(s)[/] [dim]{d.get('columns')}[/]")
+                for r in rows[:4]:
+                    c.print(f"    [grey62]{r}[/]")
+        elif k == "propose":
+            c.print("[bold cyan]▸ ai_agent[/] [magenta]propose[/]")
+            data = step.get("data", {})
+            if data.get("situation_type"):
+                c.print(f"  [magenta]{data['situation_type']}[/]  [dim]{data.get('subject_refs', '')}[/]")
+            c.print(f"  [white]{step['text']}[/]")
+        elif k == "post":
+            c.print(f"[bold green]▸ gateway[/] [green]post[/]  {step['text']}")
+        elif k == "escalate":
+            c.print(f"[bold yellow]▸ {step['text']}[/]")
+        elif k == "error":
+            c.print(f"[red]✗ {step['text']}[/]")
+        elif k == "audit":
+            c.rule("[bold]AUDIT TRAIL[/]  [dim](append-only · every transition a diff)[/]")
+            if not step["data"]:
+                c.print("  [dim](no rows — already processed or escalated without a post)[/]")
+            for r in step["data"]:
+                mark = "[green]✓[/]" if r["allowed"] else "[red]✗ denied[/]"
+                c.print(f"  [grey62]{r['at']}[/]  [cyan]{r['actor']:<20}[/] {r['action']:<9} {mark}  "
+                        f"[dim]{r['reason'] or ''}[/]")
+        _t.sleep(0.02)
+
+    run_scenario(text, emit)
+
+
 @agent_app.command("run")
 def agent_run(limit: int = typer.Option(None, "--limit", help="only the first N scenarios")) -> None:
     """Onboard, then autonomously process every planted scenario through the gateway."""
