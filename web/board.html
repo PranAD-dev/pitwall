@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pit Wall — blueprint board</title>
+<style>
+  :root{ --bg:#05080c; --panel:#0b1119; --volt:#c6ff2e; --dim:rgba(255,255,255,.45);
+    --white:#eef3f7; --amber:#ffcf33; --red:#ff5564; --blue:#7fd4ff; --line:rgba(198,255,46,.14); }
+  *{box-sizing:border-box;}
+  html,body{margin:0;min-height:100%;background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(198,255,46,.06), transparent 60%), var(--bg);
+    color:var(--white);font:13px/1.5 ui-monospace,"SF Mono",Menlo,monospace;}
+  a{color:var(--volt);text-decoration:none;}
+  .cut{clip-path:polygon(0 0,100% 0,100% calc(100% - 13px),calc(100% - 13px) 100%,0 100%);}
+  #top{display:flex;align-items:center;gap:16px;padding:13px 22px;border-bottom:1px solid var(--line);}
+  #top .mark{font-weight:800;color:var(--volt);letter-spacing:.14em;font-size:18px;}
+  #top .sub{color:var(--dim);font-size:11px;letter-spacing:.08em;text-transform:uppercase;}
+  #top .nav{margin-left:auto;display:flex;gap:10px;}
+  #top .nav a{font-size:11px;color:var(--dim);border:1px solid var(--line);padding:6px 13px;letter-spacing:.05em;text-transform:uppercase;}
+  #top .nav a:hover{color:var(--volt);border-color:rgba(198,255,46,.5);}
+  #grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:16px 20px;}
+  @media(max-width:1100px){#grid{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:720px){#grid{grid-template-columns:1fr;}}
+  .panel{background:var(--panel);border-left:3px solid var(--volt);padding:15px 17px;min-height:220px;overflow:hidden;}
+  .panel .no{color:var(--volt);font-weight:800;font-size:11px;letter-spacing:.14em;}
+  .panel h2{margin:2px 0 1px;font-size:16px;font-weight:800;color:var(--white);letter-spacing:.01em;}
+  .panel .tag{color:var(--dim);font-size:11px;margin-bottom:11px;}
+  .muted{color:var(--dim);}
+  /* environment */
+  .src{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+  .src span{font-size:10.5px;color:var(--blue);background:rgba(127,212,255,.1);padding:3px 8px;}
+  .flow{color:var(--dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;}
+  .gcounts{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;}
+  .gcounts div{display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.05);padding:3px 0;}
+  .gcounts .n{color:var(--volt);font-weight:700;}
+  /* roles */
+  .roles div{display:flex;gap:8px;padding:3px 0;font-size:12px;border-bottom:1px solid rgba(255,255,255,.04);}
+  .roles .r{color:var(--blue);min-width:128px;} .roles .res{color:var(--dim);min-width:78px;} .roles .a{color:var(--white);}
+  .deny{margin-top:9px;background:rgba(255,85,100,.08);border-left:2px solid var(--red);padding:7px 9px;font-size:11.5px;}
+  .deny .x{color:var(--red);font-weight:700;}
+  /* harness state machine */
+  .sm{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px;}
+  .st{background:#0e1620;border:1px solid var(--line);padding:6px 9px;text-align:center;min-width:62px;}
+  .st.held{border-color:rgba(255,85,100,.4);} .st.posted{border-color:var(--volt);}
+  .st .l{font-size:9px;color:var(--dim);letter-spacing:.06em;} .st .c{font-size:16px;font-weight:800;color:var(--volt);}
+  .arrow{color:var(--dim);}
+  /* audit */
+  .arow{display:flex;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:11.5px;}
+  .arow .at{color:var(--dim);} .arow .ac{color:var(--blue);min-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .arow .av{color:var(--volt);min-width:54px;} .arow .ad{color:var(--dim);}
+  .arow.d .av{color:var(--red);}
+  /* policies */
+  .prow{padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);}
+  .pid{color:var(--volt);font-weight:700;} .pev{color:var(--dim);float:right;font-size:11px;}
+  .orig{font-size:8px;letter-spacing:.1em;padding:1px 6px;margin-left:6px;text-transform:uppercase;}
+  .orig.learned{background:rgba(127,212,255,.14);color:var(--blue);} .orig.improved{background:rgba(198,255,46,.18);color:var(--volt);}
+  .pt{color:var(--white);opacity:.68;font-size:11px;margin-top:2px;}
+  /* forecast */
+  .big{font-size:30px;font-weight:800;color:var(--volt);} .fl{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.08em;}
+  .gtrack{height:9px;background:rgba(255,255,255,.08);margin:8px 0;position:relative;}
+  .gfill{height:100%;background:var(--volt);} .glimit{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--red);}
+  .pipe{display:flex;gap:14px;margin-top:8px;} .pipe div{flex:1;} .pipe .n{font-size:16px;font-weight:800;}
+</style>
+</head>
+<body>
+<div id="top">
+  <span class="mark">PIT WALL</span>
+  <span class="sub">Blueprint Board · the system of work, live</span>
+  <div class="nav"><a href="/">◂ Control room</a><a href="/match">Stadium</a></div>
+</div>
+
+<div id="grid">
+  <div class="panel cut"><div class="no">① ENVIRONMENT · BUILD 1</div><h2>Sync records into one shape</h2>
+    <div class="tag">change-only sync · stable ids · every golden row traces to raw</div>
+    <div class="src" id="env-src"></div><div class="flow">sources → raw → standardised → golden (kept current)</div>
+    <div class="gcounts" id="env-counts"><div class="muted">—</div></div></div>
+
+  <div class="panel cut"><div class="no">② AGENTS + HUMANS · BUILD 2</div><h2>Map who may do what</h2>
+    <div class="tag">can(actor, action, resource) · checked on every call</div>
+    <div class="roles" id="roles"></div><div class="deny" id="deny"><span class="muted">no denied attempts yet</span></div></div>
+
+  <div class="panel cut"><div class="no">③ THE HARNESS · BUILD 3</div><h2>Tools are CRUD on the work</h2>
+    <div class="tag">one state machine · a reversal is a new transition · only the gateway posts</div>
+    <div class="sm" id="sm"></div><div class="muted" id="sm-note" style="font-size:11px;"></div></div>
+
+  <div class="panel cut"><div class="no">④ TRACEABILITY · BUILD 4</div><h2>Log every transition as a diff</h2>
+    <div class="tag">append-only · written with the change · denied attempts logged too</div>
+    <div id="audit"><div class="muted">—</div></div></div>
+
+  <div class="panel cut"><div class="no">⑤ SELF-LEARNING + IMPROVING</div><h2>Learns the job, gets better</h2>
+    <div class="tag">drafts policy from 12mo history · generalises every correction</div>
+    <div id="policies"><div class="muted">—</div></div></div>
+
+  <div class="panel cut"><div class="no">⑥ FORECAST · THE 5TH SYSTEM</div><h2>Next quarter's numbers shift</h2>
+    <div class="tag">one economic event ripples through to the forecast</div>
+    <div id="fc"><div class="muted">—</div></div></div>
+</div>
+
+<script>
+const ROLES=[
+  ['sync','work_item','create'],['ai_agent','work_item','propose · ask'],['ai_agent','policy','propose'],
+  ['human_accountant','work_item','approve · answer'],['human_controller','policy','approve'],
+  ['human_cfo','work_item','release fraud hold'],['gateway','journal','post (only)'],
+];
+const STATES=[['NEW',''],['PROPOSED',''],['NEEDS_INFO',''],['APPROVED',''],['POSTED','posted'],['HELD','held']];
+const fmt=n=>n==null?'—':(Math.abs(n)>=1e6?(n/1e6).toFixed(1)+'M':Math.round(n/1e3)+'k');
+const el=(c,h)=>{const d=document.createElement('div');d.className=c;if(h!=null)d.innerHTML=h;return d;};
+const esc=s=>(s==null?'':String(s)).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+const J=u=>fetch(u).then(r=>r.json());
+
+function roles(){const r=document.getElementById('roles');r.innerHTML='';
+  ROLES.forEach(([a,res,act])=>r.appendChild(el('',`<span class="r">${a}</span><span class="res">${res}</span><span class="a">${act}</span>`)));}
+roles();
+
+async function loadAll(){
+  // environment
+  try{const e=await J('/api/environment');
+    document.getElementById('env-src').innerHTML=e.sources.map(s=>`<span>${esc(s)}</span>`).join('');
+    document.getElementById('env-counts').innerHTML=Object.entries(e.golden).map(([k,v])=>`<div><span>${k}</span><span class="n">${v}</span></div>`).join('')
+      +`<div><span><b>golden rows</b></span><span class="n">${e.total}</span></div>`;}catch(_){}
+  // agents+humans — live denial
+  try{const d=await J('/api/denials');const box=document.getElementById('deny');
+    if(d.length){const r=d[0];box.innerHTML=`<span class="x">✗ DENIED</span> ${esc(r.actor)} → ${esc(r.action)} on ${esc(r.subject)}<div class="muted">${esc(r.reason)}</div>`;}
+    else box.innerHTML='<span class="muted">separation of duties: an agent can\'t approve its own work; no role may post but the gateway</span>';}catch(_){}
+  // harness state machine
+  try{const m=await J('/api/metrics');const states=m.states||{};const sm=document.getElementById('sm');sm.innerHTML='';
+    STATES.forEach(([s,cls],i)=>{sm.appendChild(el('st '+cls,`<div class="l">${s}</div><div class="c">${states[s]||0}</div>`));
+      if(i<STATES.length-1&&s!=='POSTED')sm.appendChild(el('arrow','→'));});
+    document.getElementById('sm-note').textContent=`${m.posted||0} posted · ${m.held||0} held · ${m.audit_allowed||0} allowed / ${m.audit_denied||0} denied transitions logged`;}catch(_){}
+  // traceability
+  try{const a=await J('/api/audit-recent');const box=document.getElementById('audit');box.innerHTML='';
+    a.forEach(r=>box.appendChild(el('arow'+(r.allowed?'':' d'),
+      `<span class="at">${esc(r.at)}</span><span class="ac">${esc(r.actor)}</span><span class="av">${esc(r.action)}</span>`+
+      `<span class="ad">${esc(r.state||r.reason||'')}</span>`)));}catch(_){}
+  // self-learning/improving
+  try{const ps=await J('/api/policies');const box=document.getElementById('policies');box.innerHTML='';
+    ps.filter(p=>p.auto).forEach(p=>{const impr=p.origin==='self-improved';
+      box.appendChild(el('prow',`<span class="pid">${esc(p.id)}</span><span class="orig ${impr?'improved':'learned'}">${impr?'SELF-IMPROVED':'LEARNED'}</span><span class="pev">${p.evidence} precedents</span><div class="pt">${esc(p.text)}</div>`));});}catch(_){}
+  // forecast
+  try{const f=await J('/api/forecast');const ratio=f.squad_cost_ratio,lim=f.squad_cost_limit;
+    document.getElementById('fc').innerHTML=
+      `<div class="fl">cash pipeline (net)</div><div class="big">£${fmt(f.pipeline_net)}</div>`+
+      `<div class="fl" style="margin-top:8px;">squad-cost ratio · ${ratio}% / ${lim}%</div>`+
+      `<div class="gtrack"><div class="gfill" style="width:${Math.min(100,ratio/lim*100)}%"></div><div class="glimit" style="left:100%"></div></div>`+
+      `<div class="pipe"><div><div class="fl">in</div><div class="n" style="color:var(--volt)">£${fmt(f.pipeline_in)}</div></div>`+
+      `<div><div class="fl">out</div><div class="n">£${fmt(f.pipeline_out)}</div></div>`+
+      `<div><div class="fl">amortization</div><div class="n">£${fmt(f.amort)}</div></div></div>`;}catch(_){}
+}
+loadAll(); setInterval(loadAll, 4000);
+</script>
+</body>
+</html>

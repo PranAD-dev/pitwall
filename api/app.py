@@ -133,6 +133,48 @@ def policies() -> list[dict]:
     return out
 
 
+@app.get("/api/environment")
+def environment() -> dict:
+    """Build 1 — the systems of record synced into one shape (deck slide 15)."""
+    tables = ["bank_transaction", "invoice", "installment", "transfer", "counterparty",
+              "contract_clause", "match_event", "fx_rate", "inbox_message", "sponsor_contract",
+              "journal_entry"]
+    counts = {}
+    for t in tables:
+        try:
+            counts[t] = _rows(f"SELECT count(*) n FROM golden.{t}")[0]["n"]
+        except Exception:
+            counts[t] = 0
+    return {"golden": counts, "total": sum(counts.values()),
+            "sources": ["J.P. Morgan · bank", "Oracle NetSuite · ledger", "Contracts",
+                        "Match data", "Inbox"]}
+
+
+@app.get("/api/denials")
+def denials() -> list[dict]:
+    """Build 2 / Build 4 — denied attempts, logged too (limits in code)."""
+    rows = _rows("SELECT at, actor, action, subject, reason FROM work.audit_log "
+                 "WHERE allowed = false ORDER BY at DESC LIMIT 8")
+    return [{"at": str(r["at"])[11:19], "actor": r["actor"], "action": r["action"],
+             "subject": r["subject"], "reason": (r["reason"] or "")[:70]} for r in rows]
+
+
+@app.get("/api/audit-recent")
+def audit_recent() -> list[dict]:
+    """Build 4 — the append-only log, recent transitions as diffs (deck slide 14)."""
+    rows = _rows("SELECT at, actor, action, subject, allowed, reason, diff FROM work.audit_log "
+                 "ORDER BY at DESC LIMIT 14")
+    out = []
+    for r in rows:
+        diff = r["diff"] or {}
+        st = diff.get("state")
+        out.append({"at": str(r["at"])[11:19], "actor": r["actor"], "action": r["action"],
+                    "subject": r["subject"], "allowed": r["allowed"],
+                    "reason": (r["reason"] or "")[:56],
+                    "state": f"{st['from']}→{st['to']}" if st else None})
+    return out
+
+
 @app.get("/api/audit/{subject}")
 def audit(subject: str) -> list[dict]:
     rows = _rows(
@@ -284,6 +326,11 @@ async def scenario_stream(text: str) -> StreamingResponse:
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(WEB / "scenario.html")
+
+
+@app.get("/board")
+def board_ui() -> FileResponse:
+    return FileResponse(WEB / "board.html")
 
 
 @app.get("/match")
