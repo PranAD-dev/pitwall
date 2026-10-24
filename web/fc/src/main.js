@@ -209,7 +209,7 @@ window.__pwRunTerm = function (text) {
     else if (k === 'post') terminal.write('gateway ▸ ' + s.text, TCOL.VOLT);
     else if (k === 'escalate') terminal.write('▸ ' + s.text, TCOL.AMBER);
     else if (k === 'forecast') { const im = (s.data || {}).impact; if (im && im.line) terminal.write('forecast ▸ ' + im.line, TCOL.VOLT); }
-    else if (k === 'report') terminal.write('report ▸ ' + s.text, TCOL.WHITE);
+    else if (k === 'report') { terminal.write('report ▸ ● ON AIR', TCOL.VOLT); if (window.__pwBroadcast) window.__pwBroadcast(s.text); }
     else if (k === 'error') terminal.write('✗ ' + s.text, TCOL.RED);
     else if (k === 'done') es.close();
   };
