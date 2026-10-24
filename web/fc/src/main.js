@@ -82,7 +82,7 @@ window.__APP = { scene, renderer, ball, teams, match, rig, commentary, audio, TH
 
 // --- Empty field view: the stadium + pitch, every player and the ball removed,
 // with free orbit navigation (drag to rotate · scroll to zoom). ---
-const OVERVIEW = { az: 2.110, pol: 0.594, r: 75.2, x: 0, y: 3, z: 0 };
+const OVERVIEW = { az: Math.PI, pol: 0.26, r: 105, x: 0, y: 3, z: 0 };
 const nav = {
   az: OVERVIEW.az, pol: OVERVIEW.pol, r: OVERVIEW.r,          // current orbit
   taz: OVERVIEW.az, tpol: OVERVIEW.pol, tr: OVERVIEW.r,       // desired orbit
@@ -289,8 +289,8 @@ function setupField() {
   reporter = createReporter(1280);   // the finance-report billboard (📺 REPORT)
   reportPlayer = createLiveReport({ reporter });
   // intro framing: the exact angle you picked (press "p" to re-capture)
-  nav.dx = nav.tx = OVERVIEW.x; nav.dy = nav.ty = OVERVIEW.y; nav.dz = nav.tz = OVERVIEW.z;
-  nav.taz = nav.az = OVERVIEW.az; nav.tpol = nav.pol = OVERVIEW.pol; nav.tr = nav.r = OVERVIEW.r;
+  nav.dx = nav.tx = 44; nav.dy = nav.ty = 3; nav.dz = nav.tz = 0;
+  nav.taz = nav.az = -1.592; nav.tpol = nav.pol = 0.233; nav.tr = nav.r = 96.2;
   initNav();
   buildNavUI();
 }
