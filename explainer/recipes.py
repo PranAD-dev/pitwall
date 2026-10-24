@@ -88,3 +88,47 @@ def cascade_flow(boxes: list[str], *, say: str, facts: Facts | None = None,
                  focus: str | None = None) -> dict[str, Any]:
     return _scene(say, "flow", {"type": "flow", "title": title, "boxes": boxes},
                   facts, source, focus)
+
+
+def log_trail(entries: list[Any], *, say: str, facts: Facts | None = None,
+              title: str = "write-ahead log", source: str = "log",
+              focus: str | None = None) -> dict[str, Any]:
+    """A log stream. Each entry is (at, text) or (at, text, level) or a dict
+    {at, text, level}. level ∈ info|ok|warn|err drives colour."""
+    norm = []
+    for e in entries:
+        if isinstance(e, dict):
+            norm.append({"at": e.get("at", ""), "text": e.get("text", ""),
+                         "level": e.get("level", "info")})
+        else:
+            at, text, *rest = e
+            norm.append({"at": at, "text": text, "level": rest[0] if rest else "info"})
+    return _scene(say, "log", {"type": "log", "title": title, "entries": norm},
+                  facts, source, focus)
+
+
+def transaction_impact(*, title: str, entry_lines: list[str],
+                       affected: list[tuple[str, Any, str]], logs: list[Any],
+                       says: dict[str, str] | None = None,
+                       facts: dict[str, Facts] | None = None,
+                       source: str = "ledger") -> list[dict[str, Any]]:
+    """The UI-button archetype: explain one transaction end to end —
+      1) the journal entry that posted,
+      2) the OTHER tables it touched (Table | Rows | Effect),
+      3) the append-only log of every write.
+    `affected` = [(table_name, rows_changed, effect_text), ...].
+    `says`/`facts` optionally override each scene's sentence/grounded values; the
+    defaults carry no bare numbers, so they're grounded by construction."""
+    says = says or {}
+    facts = facts or {}
+    return [
+        transaction_entry(entry_lines, title=title, source=source,
+                          say=says.get("entry", "Here is the transaction that posted."),
+                          facts=facts.get("entry")),
+        report_table(f"{title} — tables affected", ["Table", "Rows", "Effect"],
+                     [[t, str(r), e] for (t, r, e) in affected],
+                     say=says.get("impact", "It rippled into the tables below."),
+                     facts=facts.get("impact"), source=source),
+        log_trail(logs, say=says.get("logs", "Every write is in the append-only log."),
+                  facts=facts.get("logs"), source=source),
+    ]

@@ -48,6 +48,8 @@ def draw_values(draw: dict[str, Any]) -> str:
         out += draw.get("boxes", [])
     elif t == "compare":
         out += [c for col in draw.get("columns", []) for c in col.get("lines", [])]
+    elif t == "log":
+        out += [e.get("text", "") for e in draw.get("entries", [])]
     return re.sub(r"[,$€£%]", "", " ".join(str(x) for x in out))
 
 

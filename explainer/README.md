@@ -34,7 +34,24 @@ Plain JSON any system can emit:
 }
 ```
 Canvas `draw` types: `table`, `calc`, `entry` (Dr/Cr → "POSTED"), `checks`,
-`flow`, `compare`. Each renders on black, monospace, green/amber/red for meaning.
+`flow`, `compare`, `log` (timed write-ahead log). Each renders on black, monospace,
+green/amber/red for meaning.
+
+## The UI-button archetype: explain a transaction + what it touched
+`recipes.transaction_impact(...)` emits the exact flow you want behind a "Generate
+explanation" button — **the journal entry → the OTHER tables it affected → the
+append-only log of every write**:
+```python
+scenes = r.transaction_impact(
+    title="Customer payment — INV-2048",
+    entry_lines=["Dr  Cash  $120,000", "Cr  Accounts receivable  $120,000"],
+    affected=[("accounts_receivable", 1, "cleared −$120,000"), ("cash_ledger", 1, "+$120,000"),
+              ("customer_balance", 1, "now $0"), ("audit_log", 1, "payment.posted")],
+    logs=[("09:41:02.117", "INSERT audit_log payment.posted", "ok"),
+          ("09:41:02.118", "COMMIT tx_8842", "ok")],
+    facts={"entry": {"amount": "$120,000"}},
+)   # -> three scenes: entry / affected-tables / log
+```
 
 ## Author scenes with recipes
 ```python
@@ -68,6 +85,16 @@ open voice/replay.html                         # watch it build live (captions +
 # live voice (drop keys in .env): narrate your data
 EXPLAIN_SOURCE=json:/path/to/requests  uv run python voice/agent.py dev
 ```
+
+## The button's backend (one call)
+```bash
+uv pip install '.[server]'
+EXPLAIN_SOURCE=json:/path/to/requests  uv run uvicorn explainer.server:app --port 4022
+```
+Your UI button then does `fetch('/explain/'+subject)` → a finalized plan, and plays
+it by opening `voice/replay.html?plan=http://localhost:4022/explain/<subject>` (it
+fetches the plan and builds it live). `POST /explain {request}` narrates a request
+you built client-side; `GET /subjects` lists what's available.
 Optional: set `ANTHROPIC_API_KEY` to let Claude polish the spoken lines (still
 re-validated for grounding). Files: `engine.py` · `recipes.py` · `providers.py` ·
 `llm.py` · `samples/`.

@@ -33,6 +33,7 @@
   .cline.result { color:var(--green); font-weight:600; } .stamp { color:var(--green); margin-top:10px; }
   .chk { opacity:0; transition:opacity .25s; margin:7px 0; } .chk.show { opacity:1; }
   .chk .ok { color:var(--green); } .chk .bad { color:var(--red); }
+  .log .ts { color:var(--dim); } .log.ok { color:var(--green); } .log.warn { color:var(--amber); } .log.err { color:var(--red); }
   .flow { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .box { border:1px solid #23272e; border-radius:6px; padding:10px 16px; color:var(--dim);
          opacity:.4; transition:all .3s; } .box.lit { opacity:1; color:#fff; border-color:var(--amber); }
@@ -51,11 +52,15 @@
 <div class="foot" id="foot">SIMULATED · captions only (no audio) · every number shown was returned by a tool</div>
 
 <script>
-const PLAN = window.PITWALL_PLAN || {title:"no plan.js — run: pitwall explain export WI-5602 -o voice/plan.js", scenes:[]};
+let PLAN = window.PITWALL_PLAN || {title:"no plan — add plan.js, or open with ?plan=<url>", scenes:[]};
 const $ = s => document.querySelector(s);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const term = $("#term"), canvas = $("#canvas");
-$("#title").textContent = PLAN.title + (PLAN.as_of ? "  ·  as of " + PLAN.as_of : "");
+function setTitle(){ $("#title").textContent = PLAN.title + (PLAN.as_of ? "  ·  as of " + PLAN.as_of : ""); }
+setTitle();
+(async () => { const u = new URLSearchParams(location.search).get("plan");
+  if (u) { try { const r = await fetch(u); PLAN = await r.json(); setTitle(); }
+           catch (e) { $("#foot").textContent = "could not fetch " + u; } } })();
 
 function words(s){ return (s.match(/\S+/g)||[]).length; }
 
@@ -111,7 +116,13 @@ async function drawCompare(d, dur){
     col.lines.forEach(l=>{ const e=document.createElement("div"); e.className="cline"; e.textContent=l; c.appendChild(e); all.push(e); }); });
   await revealEach(all, dur);
 }
-const DRAW = {table:drawTable, calc:drawCalc, entry:drawEntry, checks:drawChecks, flow:drawFlow, compare:drawCompare};
+async function drawLog(d, dur){
+  canvas.innerHTML = `<div class="ctitle">${d.title||"log"}</div>`;
+  const ns = d.entries.map(e=>{ const x=document.createElement("div"); x.className="cline log "+(e.level||"info");
+    x.innerHTML = `<span class="ts">${e.at||""}</span>  ${e.text||""}`; canvas.appendChild(x); return x; });
+  await revealEach(ns, dur);
+}
+const DRAW = {table:drawTable, calc:drawCalc, entry:drawEntry, checks:drawChecks, flow:drawFlow, compare:drawCompare, log:drawLog};
 
 async function playScene(sc){
   const dur = Math.max(2300, words(sc.say)*300);

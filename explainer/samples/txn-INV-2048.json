@@ -1,0 +1,114 @@
+{
+  "subject_id": "txn-INV-2048",
+  "title": "Customer payment \u2014 INV-2048",
+  "scenes": [
+    {
+      "say": "A customer paid $120,000 against invoice INV-2048.",
+      "ui": {
+        "focus": "Customer payment \u2014 INV-2048",
+        "panel": "canvas",
+        "highlight": "entry"
+      },
+      "facts": [
+        {
+          "key": "amount",
+          "value": "$120,000",
+          "source": "ledger"
+        }
+      ],
+      "draw": {
+        "type": "entry",
+        "title": "Customer payment \u2014 INV-2048",
+        "lines": [
+          "Dr  Cash                 $120,000",
+          "Cr  Accounts receivable  $120,000"
+        ]
+      }
+    },
+    {
+      "say": "That one payment touched four other tables \u2014 receivable cleared, cash up, balance zeroed, and an audit row appended.",
+      "ui": {
+        "focus": "Customer payment \u2014 INV-2048 \u2014 tables affected",
+        "panel": "canvas",
+        "highlight": "table"
+      },
+      "facts": [],
+      "draw": {
+        "type": "table",
+        "title": "Customer payment \u2014 INV-2048 \u2014 tables affected",
+        "columns": [
+          "Table",
+          "Rows",
+          "Effect"
+        ],
+        "rows": [
+          [
+            "accounts_receivable",
+            "1",
+            "INV-2048 cleared  (\u2212$120,000)"
+          ],
+          [
+            "cash_ledger",
+            "1",
+            "+$120,000"
+          ],
+          [
+            "customer_balance",
+            "1",
+            "now $0 outstanding"
+          ],
+          [
+            "audit_log",
+            "1",
+            "append: payment.posted"
+          ]
+        ]
+      }
+    },
+    {
+      "say": "Every write landed inside a single committed transaction, logged append-only.",
+      "ui": {
+        "focus": "write-ahead log",
+        "panel": "canvas",
+        "highlight": "log"
+      },
+      "facts": [],
+      "draw": {
+        "type": "log",
+        "title": "write-ahead log",
+        "entries": [
+          {
+            "at": "09:41:02.113",
+            "text": "BEGIN  tx_8842",
+            "level": "info"
+          },
+          {
+            "at": "09:41:02.114",
+            "text": "UPDATE accounts_receivable  id=INV-2048  balance -120000",
+            "level": "info"
+          },
+          {
+            "at": "09:41:02.115",
+            "text": "INSERT cash_ledger  +120000",
+            "level": "info"
+          },
+          {
+            "at": "09:41:02.116",
+            "text": "UPDATE customer_balance  acme-corp  -> 0",
+            "level": "info"
+          },
+          {
+            "at": "09:41:02.117",
+            "text": "INSERT audit_log  payment.posted",
+            "level": "ok"
+          },
+          {
+            "at": "09:41:02.118",
+            "text": "COMMIT tx_8842",
+            "level": "ok"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -16,6 +16,7 @@ dependencies = [
 # Added as later milestones come online; kept optional so M0 installs lean.
 agent = ["anthropic>=0.39"]
 x402 = ["httpx>=0.27"]
+server = ["fastapi>=0.110", "uvicorn>=0.29"]
 
 [project.scripts]
 pitwall = "pitwall.cli:app"
