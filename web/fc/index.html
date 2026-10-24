@@ -95,13 +95,13 @@
       <span class="mmark">PIT WALL</span>
       <span class="msub">Autonomous Transfer Finance · Harbourside FC</span>
       <div class="mgrid">
-        <a class="mtile active" href="http://localhost:4055/control">
+        <a class="mtile active" id="m-control" href="#">
           <div class="mno">01 · THE AGENT AT WORK</div><div class="mt">Control room</div>
-          <div class="md">Type a finance scenario → watch it think, query history, decide, post. Code decides, not vibes.</div><div class="mgo">▸</div></a>
-        <a class="mtile" href="http://localhost:4055/board">
+          <div class="md">Type a finance scenario → watch it think, query history, decide, post — right here on the pitch. Code decides, not vibes.</div><div class="mgo">▸</div></a>
+        <a class="mtile" id="m-board" href="#">
           <div class="mno">02 · THE SYSTEM OF WORK, LIVE</div><div class="mt">Blueprint board</div>
-          <div class="md">Six panels — sync · roles & SoD · state machine · audit · learned policies · forecast.</div><div class="mgo">▸</div></a>
-        <a class="mtile" href="http://localhost:4055/control">
+          <div class="md">The six jumbotrons around you — sync · roles & SoD · state machine · audit · learned policies · forecast.</div><div class="mgo">▸</div></a>
+        <a class="mtile" id="m-score" href="#">
           <div class="mno">03 · SCORED VS THE ANSWER KEY</div><div class="mt">21/21 · 100% · 0</div>
           <div class="md">21 planted issues · 100% precision on auto-completes · 0 must-not-auto-complete violations.</div><div class="mgo">▸</div></a>
         <a class="mtile" id="m-explore" href="#">
@@ -111,11 +111,110 @@
     </div>
   </div>
   <button id="menu-btn">☰ MENU</button>
+
+  <!-- ================= in-stadium Control Room (transparent overlay) ================= -->
+  <style>
+    #control{position:fixed;inset:0;z-index:42;display:none;pointer-events:none;
+      background:linear-gradient(90deg,rgba(5,8,12,.86) 0%,rgba(5,8,12,.5) 46%,transparent 80%);
+      font-family:ui-monospace,"SF Mono",Menlo,monospace;color:#eef3f7;}
+    #control .cwrap{pointer-events:auto;width:56%;max-width:760px;height:100%;display:flex;flex-direction:column;padding:18px 26px;}
+    #control .chead{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+    #control .cmark{color:#c6ff2e;font-weight:800;letter-spacing:.14em;font-size:18px;}
+    #control .chead .verb{color:rgba(255,255,255,.45);font-size:11px;letter-spacing:.06em;text-transform:uppercase;}
+    #control .cclose{margin-left:auto;background:rgba(7,11,17,.7);color:#c6ff2e;border:1px solid rgba(198,255,46,.4);
+      padding:7px 13px;font:12px ui-monospace,monospace;cursor:pointer;letter-spacing:.05em;}
+    #control .crow{display:flex;gap:8px;}
+    #control #c-q{flex:1;background:rgba(10,16,22,.75);border:1px solid rgba(198,255,46,.25);color:#eef3f7;padding:11px 13px;font:14px ui-monospace,monospace;outline:none;}
+    #control #c-go{background:#c6ff2e;color:#05080c;border:0;padding:0 20px;font-weight:800;cursor:pointer;letter-spacing:.04em;}
+    #control .cchips{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0;}
+    #control .cchip{font-size:11px;color:rgba(255,255,255,.5);background:rgba(10,16,22,.6);border:1px solid rgba(198,255,46,.2);padding:5px 11px;cursor:pointer;text-transform:uppercase;letter-spacing:.04em;}
+    #control .cchip:hover{color:#c6ff2e;border-color:rgba(198,255,46,.5);}
+    #control .ctrail{flex:1;overflow:auto;padding-right:6px;}
+    #control .cstep{margin:0 0 11px;animation:fin .25s ease;}
+    @keyframes fin{from{opacity:0;transform:translateX(-6px)}to{opacity:1}}
+    #control .badge{font-size:9px;font-weight:800;letter-spacing:.12em;padding:2px 7px;background:rgba(198,255,46,.14);color:#c6ff2e;}
+    #control .verb{color:rgba(255,255,255,.4);font-size:10px;letter-spacing:.1em;margin-left:7px;text-transform:uppercase;}
+    #control .body{margin:4px 0 0 2px;white-space:pre-wrap;}
+    #control .think{opacity:.85;} #control .sql{color:#ffcf33;font-size:12.5px;}
+    #control .res{color:rgba(255,255,255,.5);font-size:12px;margin-top:3px;}
+    #control .prop .type{color:#7fd4ff;font-weight:700;text-transform:uppercase;}
+    #control .verdict{padding:14px 16px;margin:4px 0 12px;background:rgba(14,22,32,.72);border-left:4px solid #c6ff2e;animation:fin .3s ease;}
+    #control .verdict.held{border-left-color:#ff5564;} #control .verdict.esc{border-left-color:#ffcf33;}
+    #control .verdict .big{font-size:24px;font-weight:800;color:#c6ff2e;} #control .verdict.held .big{color:#ff5564;} #control .verdict.esc .big{color:#ffcf33;}
+    #control .verdict .meta{font-size:11px;color:rgba(255,255,255,.5);margin-top:3px;}
+    #control .fc{padding:11px 14px;margin:4px 0 12px;background:rgba(198,255,46,.08);}
+    #control .fc .amt{font-size:22px;font-weight:800;color:#c6ff2e;} #control .fc .line{font-size:12px;opacity:.8;}
+    #control .report{padding:13px 15px;margin:4px 0;background:linear-gradient(135deg,rgba(198,255,46,.1),rgba(11,17,25,.6));border-left:4px solid #c6ff2e;}
+    #control .report .speak{background:#c6ff2e;color:#05080c;border:0;padding:5px 11px;font-weight:800;font-size:11px;cursor:pointer;float:right;}
+    #control .report .txt{font-size:13.5px;line-height:1.6;margin-top:6px;}
+    #control .muted{color:rgba(255,255,255,.4);}
+  </style>
+  <div id="control">
+    <div class="cwrap">
+      <div class="chead"><span class="cmark">CONTROL ROOM</span><span class="verb">type a scenario → the agent decides</span>
+        <button class="cclose" id="c-close">✕ MENU</button></div>
+      <div class="crow"><input id="c-q" placeholder="Describe a finance situation…" /><button id="c-go">RUN</button></div>
+      <div class="cchips" id="c-chips"></div>
+      <div class="ctrail" id="c-trail"><div class="muted">— pick a scenario or type your own —</div></div>
+    </div>
+  </div>
+
   <script>
+    // menu / control / stadium toggling
     (function(){
-      const menu=document.getElementById('menu'), btn=document.getElementById('menu-btn');
-      document.getElementById('m-explore').addEventListener('click',function(e){e.preventDefault();menu.style.display='none';btn.style.display='block';});
-      btn.addEventListener('click',function(){menu.style.display='flex';btn.style.display='none';});
+      const menu=document.getElementById('menu'), btn=document.getElementById('menu-btn'), control=document.getElementById('control');
+      const openControl=e=>{if(e)e.preventDefault();menu.style.display='none';control.style.display='block';btn.style.display='block';};
+      const dismiss=e=>{if(e)e.preventDefault();menu.style.display='none';control.style.display='none';btn.style.display='block';};
+      const backToMenu=()=>{control.style.display='none';menu.style.display='flex';btn.style.display='none';};
+      document.getElementById('m-control').addEventListener('click',openControl);
+      document.getElementById('m-score').addEventListener('click',openControl);
+      document.getElementById('m-board').addEventListener('click',dismiss);
+      document.getElementById('m-explore').addEventListener('click',dismiss);
+      document.getElementById('c-close').addEventListener('click',backToMenu);
+      btn.addEventListener('click',backToMenu);
+    })();
+    // control-room run logic — streams from the Pit Wall backend, renders in-stadium
+    (function(){
+      const API='http://localhost:4055';
+      const PRE=[
+        ['Fraud · bank-detail','An email from a lookalike domain is asking us to pay the next Northgate transfer installment to a brand-new IBAN we have never used before'],
+        ['Add-on dispute','The selling club invoiced us for a 25-appearance add-on bonus on a player we signed — check the match data and tell me if we actually owe it'],
+        ['Fee short','A 2,000,000 EUR incoming transfer fee on an international sale arrived about 5% short'],
+        ['Duplicate fee','We received a second agent-fee invoice for the same amount and transfer as one we already have, with a reformatted number'],
+      ];
+      const ACTL={HOLD_BUY_EVIDENCE_ESCALATE_CFO:'HELD · ESCALATED TO CFO',REJECT_WITH_CLAUSE_AND_MATCH_IDS:'REJECTED',REJECT_DUPLICATE:'DUPLICATE REJECTED',COMPLETE_DO_NOT_CHASE:'BOOKED · NOT CHASED',COMPLETE_AFTER_EVIDENCE:'COMPLETED',SPLIT_ONE_TO_MANY:'SPLIT ONE-TO-MANY',CHASE_OR_ESCALATE:'FLAGGED TO CHASE',ESCALATE_THRESHOLD_EVASION:'HELD · THRESHOLD EVASION',PROPOSE_FX_GAIN_LOSS:'FX ENTRY PROPOSED',PROPOSE_ACCRUAL_LIABILITY:'ACCRUAL PROPOSED',ESCALATE_AMBIGUOUS_DO_NOT_GUESS:"ESCALATED · WON'T GUESS",PROPOSE_AMORTIZATION_ADJUSTMENT:'AMORTIZATION ADJ.'};
+      const fmt=n=>n==null?'—':(Math.abs(n)>=1e6?(n/1e6).toFixed(1)+'M':Math.round(n/1e3)+'k');
+      const esc=s=>(s==null?'':String(s)).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+      const $=id=>document.getElementById(id), trail=$('c-trail'), q=$('c-q'), go=$('c-go');
+      const el=(c,h)=>{const d=document.createElement('div');d.className=c;if(h!=null)d.innerHTML=h;return d;};
+      PRE.forEach(([l,t])=>{const c=el('cchip',l);c.onclick=()=>{q.value=t;run();};$('c-chips').appendChild(c);});
+      function speak(text,b){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.rate=1.03;if(b){b.textContent='▮▮ SPEAKING';u.onend=()=>b.textContent='▶ SPEAK';}speechSynthesis.speak(u);}catch(e){}}
+      function add(step){
+        const k=step.kind;
+        if(k==='scenario'){trail.innerHTML='';trail.appendChild(el('cstep',`<span class="badge">SCENARIO · ${esc(step.mode)}</span><div class="body">${esc(step.text)}</div>`));return;}
+        if(k==='post'){const o=step.data||{};let cls=o.final==='POSTED'?'':(o.final==='HELD'?'held':'esc');const lab=ACTL[o.action]||o.final;
+          const meta=[o.wi,o.policy?('auto · '+o.policy):null,o.escalated_to?('→ '+o.escalated_to):null].filter(Boolean).join(' · ');
+          trail.appendChild(el('verdict '+cls,`<div class="verb">gateway verdict</div><div class="big">${esc(lab)}</div><div class="meta">${esc(meta)}</div>`));trail.scrollTop=1e9;return;}
+        if(k==='forecast'){const d=step.data||{},im=d.impact||{};trail.appendChild(el('fc',`<div class="amt">${im.amount?('€'+fmt(im.amount)):'—'}</div><div class="line">${esc(im.line||'')}</div>`));trail.scrollTop=1e9;return;}
+        if(k==='report'){const d=el('report',`<div><button class="speak">▶ SPEAK</button><span class="verb">agent report</span></div><div class="txt">${esc(step.text)}</div>`);const b=d.querySelector('.speak');b.onclick=()=>speak(step.text,b);trail.appendChild(d);trail.scrollTop=1e9;speak(step.text,b);return;}
+        if(k==='escalate'){trail.appendChild(el('verdict esc',`<div class="big">ESCALATED</div><div class="meta">${esc(step.text)}</div>`));trail.scrollTop=1e9;return;}
+        if(k==='audit')return;
+        const s=el('cstep');
+        if(k==='think')s.innerHTML=`<span class="badge">AI AGENT</span><span class="verb">think</span><div class="body think">${esc(step.text)}</div>`;
+        else if(k==='run_sql')s.innerHTML=`<span class="badge">AI AGENT</span><span class="verb">run_sql</span><div class="body sql">${esc(step.text)}</div>`;
+        else if(k==='sql_result'){const d=step.data||{};s.innerHTML=d.error?`<div class="res">◂ ${esc(d.error)}</div>`:`<div class="res">◂ ${(d.rows||[]).length} rows</div>`;}
+        else if(k==='propose'){const d=step.data||{};s.innerHTML=`<span class="badge">AI AGENT</span><span class="verb">propose</span><div class="body prop"><span class="type">${esc(d.situation_type||'')}</span><div>${esc(step.text)}</div></div>`;}
+        else if(k==='error'){s.innerHTML=`<div class="res">✗ ${esc(step.text)}</div>`;}
+        else return;
+        trail.appendChild(s);trail.scrollTop=1e9;
+      }
+      let es=null;
+      function run(){const t=q.value.trim();if(!t)return;if(es)es.close();go.disabled=true;go.textContent='…';trail.innerHTML='';
+        es=new EventSource(API+'/api/scenario/stream?text='+encodeURIComponent(t));
+        es.onmessage=e=>{const st=JSON.parse(e.data);if(st.kind==='done'){es.close();go.disabled=false;go.textContent='RUN';return;}add(st);};
+        es.onerror=()=>{es.close();go.disabled=false;go.textContent='RUN';trail.appendChild(el('res muted','(backend offline — run `make fc`)'));};}
+      window.__pwRun=run;
+      go.onclick=run; q.addEventListener('keydown',e=>{if(e.key==='Enter')run();});
     })();
   </script>
   <div id="rotate">
