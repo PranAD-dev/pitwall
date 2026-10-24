@@ -58,9 +58,61 @@ def demo_run() -> None:
 
 
 @eval_app.command("run")
-def eval_run() -> None:
-    """Run Pit Wall over the timeline and score it (arrives in M6)."""
-    typer.secho("eval harness comes online in M6.", fg="yellow")
+def eval_run(
+    limit: int = typer.Option(None, "--limit", help="score only the first N planted issues"),
+    no_write: bool = typer.Option(False, "--no-write", help="don't write docs/RESULTS.md"),
+) -> None:
+    """Run the agent's decision gate over every planted issue and score it vs the answer key."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from .eval.run import RESULTS_MD, run
+
+    console = Console()
+    res = run(limit=limit, write=not no_write)
+    rows, m = res["rows"], res["metrics"]
+
+    if m["errors"] and m["errors"] == m["total"]:
+        console.print(
+            "[red]Every detector failed to read golden facts.[/] Is the world loaded?\n"
+            "Run [bold]make reset[/] (local) or [bold]make cloud-reset[/] first."
+        )
+        raise typer.Exit(1)
+
+    table = Table(title="Pit Wall — planted-issue eval", header_style="bold")
+    table.add_column("issue"); table.add_column("type")
+    table.add_column("expected"); table.add_column("agent")
+    table.add_column("mode"); table.add_column("✓", justify="center")
+    for r in rows:
+        act = r["action"] or (f"⚠ {r['error']}" if r["error"] else "—")
+        mode = ("auto" if r["auto"] else "escalate") + (" ⛔" if r["violation"] else "")
+        mark = "[green]✓[/]" if r["correct"] else "[red]✗[/]"
+        style = None if r["correct"] else "red"
+        table.add_row(r["issue_id"], r["type"], r["expected"], act, mode, mark, style=style)
+    console.print(table)
+
+    def pct(x):
+        return f"{x * 100:.0f}%"
+
+    prec = m["precision_on_auto_completed"]
+    viol = m["must_not_auto_complete_violations"]
+    console.print(
+        f"\n[bold]Precision on auto-completed work:[/] "
+        f"[{'green' if prec == 1 else 'red'}]{pct(prec)}[/] "
+        f"({m['auto_correct']}/{m['auto_completed']})   target 100%"
+    )
+    console.print(
+        f"[bold]Must-not-auto-complete violations:[/] "
+        f"[{'green' if viol == 0 else 'red'}]{viol}[/]   target 0"
+    )
+    console.print(
+        f"[bold]Planted-issue recall:[/] {pct(m['action_recall'])} ({m['correct']}/{m['total']})   "
+        f"[bold]Automation:[/] {pct(m['automation_rate'])} ({m['auto_completed']}/{m['total']})   "
+        f"[bold]Escalation quality:[/] {pct(m['escalation_quality'])} "
+        f"({m['escalation_correct']}/{m['escalated']})"
+    )
+    if not no_write:
+        console.print(f"\n[dim]→ wrote {RESULTS_MD}[/]")
 
 
 @explain_app.command("seed-demo")
