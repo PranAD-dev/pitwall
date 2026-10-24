@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pit Wall — Explainer</title>
+<!-- Frontend PLACEHOLDER. Opens with zero setup: plays bundled grounded plans
+     (web/plans.js) like narrated videos — real voice via the browser's speech
+     synthesis, canvas building live on the right. This is the UI the LiveKit
+     lk.explain-scene stream drives in production (same scene shape). -->
+<script src="plans.js"></script>
+<style>
+  :root{--bg:#060708;--panel:#0b0d10;--line:#1b1f25;--dim:#6b7280;--fg:#e7ebf0;
+        --green:#35d07f;--amber:#e0a93b;--red:#ff5d5d;--accent:#5b8cff;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{background:var(--bg);color:var(--fg);
+       font:14px/1.6 ui-monospace,"SF Mono",Menlo,Consolas,monospace;}
+  header{display:flex;align-items:center;gap:12px;padding:14px 22px;border-bottom:1px solid var(--line);}
+  header .logo{font-weight:700;letter-spacing:.04em;}
+  header .logo b{color:var(--accent);}
+  header .tag{color:var(--dim);font-size:12px;}
+  header .status{margin-left:auto;font-size:12px;color:var(--dim);}
+  header .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);
+              margin-right:6px;vertical-align:middle;}
+  .grid{display:grid;grid-template-columns:300px 1fr 1fr;height:calc(100vh - 52px);}
+  .col{overflow:auto;}
+  .col.left{border-right:1px solid var(--line);padding:16px;}
+  .col.mid{border-right:1px solid var(--line);padding:18px 20px;}
+  .col.right{padding:22px 24px;}
+  .h{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:4px 0 12px;}
+  .txn{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;cursor:pointer;
+       transition:.15s;background:var(--panel);}
+  .txn:hover{border-color:#2d343d;}
+  .txn.active{border-color:var(--accent);}
+  .txn .t{color:var(--fg);}
+  .txn .s{color:var(--dim);font-size:12px;margin-top:3px;}
+  .txn .g{color:var(--green);font-size:11px;}
+  .narr .line{opacity:0;transform:translateY(4px);transition:all .25s;margin:12px 0;}
+  .narr .line.show{opacity:1;transform:none;}
+  .narr .say{color:var(--fg);} .narr .say::before{content:"▸ ";color:var(--green);}
+  .narr .say.speaking{color:#fff;}
+  .narr .fact{color:var(--dim);font-size:12px;margin-top:2px;}
+  .cwrap{min-height:260px;}
+  .ctitle{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:14px;}
+  table{border-collapse:collapse;width:100%;} th,td{text-align:left;padding:7px 12px;border-bottom:1px solid var(--line);}
+  th{color:var(--dim);font-weight:400;} tr.row{opacity:0;transition:.3s;} tr.row.show{opacity:1;}
+  tr.hot td{color:#fff;} .yes{color:var(--red);} .no{color:var(--green);}
+  .cline{opacity:0;transition:.25s;margin:5px 0;white-space:pre;} .cline.show{opacity:1;}
+  .cline.result{color:var(--green);font-weight:600;} .stamp{color:var(--green);margin-top:10px;}
+  .chk{opacity:0;transition:.25s;margin:8px 0;} .chk.show{opacity:1;}
+  .chk .ok{color:var(--green);} .chk .bad{color:var(--red);}
+  .flow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .box{border:1px solid var(--line);border-radius:6px;padding:10px 16px;color:var(--dim);opacity:.4;transition:.3s;}
+  .box.lit{opacity:1;color:#fff;border-color:var(--amber);}
+  .arrow{color:var(--dim);} .cmp{display:grid;grid-template-columns:1fr 1fr;gap:26px;}
+  .log .ts{color:var(--dim);} .log.ok{color:var(--green);} .log.warn{color:var(--amber);} .log.err{color:var(--red);}
+  .bar{display:flex;align-items:center;gap:14px;margin-top:20px;padding-top:14px;border-top:1px solid var(--line);}
+  button{background:var(--accent);color:#07101f;border:0;border-radius:6px;padding:9px 18px;font:inherit;
+         font-weight:600;cursor:pointer;} button:disabled{opacity:.5;cursor:default;}
+  button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line);font-weight:400;}
+  .prog{flex:1;height:4px;background:var(--line);border-radius:3px;overflow:hidden;}
+  .prog > i{display:block;height:100%;width:0;background:var(--accent);transition:width .4s;}
+  label.v{color:var(--dim);font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;}
+  .foot{color:var(--dim);font-size:11px;margin-top:10px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><b>PIT&nbsp;WALL</b> Explainer</div>
+  <div class="tag">financial transactions, explained &amp; grounded</div>
+  <div class="status"><span class="dot"></span><span id="status">ready · offline playback</span></div>
+</header>
+
+<div class="grid">
+  <!-- LEFT: transaction list (your button lives on each) -->
+  <div class="col left">
+    <div class="h">Transactions</div>
+    <div id="list"></div>
+    <div class="foot">Click one → “Generate explanation”. In production the button
+      publishes <code>lk.explain-request</code> and this fills from the live
+      <code>lk.explain-scene</code> stream.</div>
+  </div>
+
+  <!-- MIDDLE: narration + the button -->
+  <div class="col mid">
+    <div class="h" id="narrTitle">Narration</div>
+    <div class="narr" id="narr"></div>
+    <div class="bar">
+      <button id="gen" disabled>▶ Generate explanation</button>
+      <div class="prog"><i id="prog"></i></div>
+      <label class="v"><input type="checkbox" id="voice" checked /> voice</label>
+    </div>
+  </div>
+
+  <!-- RIGHT: the canvas that builds live -->
+  <div class="col right">
+    <div class="h">Canvas</div>
+    <div class="cwrap" id="canvas"></div>
+  </div>
+</div>
+
+<script>
+const PLANS = window.PITWALL_PLANS || {};
+const INDEX = window.PITWALL_INDEX || [];
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const list=$("#list"), narr=$("#narr"), canvas=$("#canvas"), gen=$("#gen"), prog=$("#prog");
+let current=null, playing=false;
+
+// --- transaction list ---
+INDEX.forEach((t,i)=>{
+  const el=document.createElement("div"); el.className="txn"+(i===0?" active":"");
+  el.innerHTML=`<div class="t">${t.title}</div><div class="s">${t.id} · ${t.scenes} scenes</div>`
+             +`<div class="g">✓ grounded</div>`;
+  el.onclick=()=>{ if(playing) return; document.querySelectorAll('.txn').forEach(x=>x.classList.remove('active'));
+    el.classList.add('active'); select(t.id); };
+  list.appendChild(el);
+});
+function select(id){ current=id; $("#narrTitle").textContent=PLANS[id].title;
+  narr.innerHTML=""; canvas.innerHTML=""; prog.style.width="0"; gen.disabled=false; }
+if(INDEX.length){ select(INDEX[0].id); }
+
+// --- voice (browser speech synthesis — real narration, no keys) ---
+function speak(text){
+  return new Promise(res=>{
+    if(!$("#voice").checked || !window.speechSynthesis){ res(); return; }
+    const u=new SpeechSynthesisUtterance(text); u.rate=1.02; u.pitch=1.0;
+    u.onend=res; u.onerror=res; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+  });
+}
+
+// --- canvas renderers (same scene/draw shape as lk.explain-scene) ---
+async function revealEach(nodes,dur){ const step=Math.max(160,dur/Math.max(nodes.length,1));
+  for(const n of nodes){ n.classList.add("show"); await sleep(step); } }
+async function drawTable(d,dur){ canvas.innerHTML=`<div class="ctitle">${d.title||"table"}</div>`;
+  const t=document.createElement("table"); t.innerHTML="<tr>"+d.columns.map(c=>`<th>${c}</th>`).join("")+"</tr>";
+  const trs=d.rows.map((row,i)=>{ const tr=document.createElement("tr"); tr.className="row"+(i===d.highlight_row?" hot":"");
+    tr.innerHTML=row.map((c,ci)=>{ let cls=ci===row.length-1?(/yes/i.test(c)?"yes":"no"):""; return `<td class="${cls}">${c}</td>`;}).join("");
+    t.appendChild(tr); return tr; }); canvas.appendChild(t); await revealEach(trs,dur); }
+async function drawCalc(d,dur){ canvas.innerHTML=`<div class="ctitle">${d.title||"calculation"}</div>`;
+  const ns=d.lines.map((l,i)=>{ const e=document.createElement("div"); e.className="cline"+(i===d.lines.length-1?" result":"");
+    e.textContent=l; canvas.appendChild(e); return e;}); await revealEach(ns,dur); }
+async function drawEntry(d,dur){ canvas.innerHTML=`<div class="ctitle">${d.title||"journal entry"}</div>`;
+  const ns=d.lines.map(l=>{ const e=document.createElement("div"); e.className="cline"; e.textContent=l; canvas.appendChild(e); return e;});
+  await revealEach(ns,dur*0.8); const s=document.createElement("div"); s.className="stamp"; s.textContent="POSTED by gateway"; canvas.appendChild(s); }
+async function drawChecks(d,dur){ canvas.innerHTML=`<div class="ctitle">${d.title||"checks"}</div>`;
+  const ns=d.items.map(it=>{ const e=document.createElement("div"); e.className="chk";
+    e.innerHTML=(it.ok?'<span class="ok">✓</span> ':'<span class="bad">✗</span> ')+it.label; canvas.appendChild(e); return e;});
+  await revealEach(ns,dur); }
+async function drawFlow(d,dur){ canvas.innerHTML=`<div class="ctitle">${d.title||"cascade"}</div>`;
+  const w=document.createElement("div"); w.className="flow"; canvas.appendChild(w); const bs=[];
+  d.boxes.forEach((b,i)=>{ if(i){ const a=document.createElement("span"); a.className="arrow"; a.textContent="→"; w.appendChild(a);}
+    const e=document.createElement("div"); e.className="box"; e.textContent=b; w.appendChild(e); bs.push(e);});
+  const step=Math.max(280,dur/bs.length); for(const b of bs){ b.classList.add("lit"); await sleep(step);} }
+async function drawCompare(d,dur){ canvas.innerHTML=`<div class="ctitle">${d.title||"comparison"}</div><div class="cmp"></div>`;
+  const g=canvas.querySelector(".cmp"); const all=[];
+  d.columns.forEach(col=>{ const c=document.createElement("div"); c.innerHTML=`<div class="fact" style="color:var(--dim)">${col.label||""}</div>`; g.appendChild(c);
+    col.lines.forEach(l=>{ const e=document.createElement("div"); e.className="cline"; e.textContent=l; c.appendChild(e); all.push(e);});}); await revealEach(all,dur); }
+async function drawLog(d,dur){ canvas.innerHTML=`<div class="ctitle">${d.title||"log"}</div>`;
+  const ns=d.entries.map(e=>{ const x=document.createElement("div"); x.className="cline log "+(e.level||"info");
+    x.innerHTML=`<span class="ts">${e.at||""}</span>  ${e.text||""}`; canvas.appendChild(x); return x;}); await revealEach(ns,dur); }
+const DRAW={table:drawTable,calc:drawCalc,entry:drawEntry,checks:drawChecks,flow:drawFlow,compare:drawCompare,log:drawLog};
+
+// --- play one scene: narrate + build canvas in step ---
+async function playScene(sc){
+  const say=document.createElement("div"); say.className="line say speaking"; say.textContent=sc.say; narr.appendChild(say);
+  const facts=document.createElement("div"); facts.className="line fact";
+  facts.textContent=(sc.facts||[]).map(f=>`${f.key}=${f.value}`).join("   "); narr.appendChild(facts);
+  requestAnimationFrame(()=>{ say.classList.add("show"); facts.classList.add("show"); });
+  narr.scrollTop=narr.scrollHeight;
+  const words=(sc.say.match(/\S+/g)||[]).length; const dur=Math.max(2600,words*320);
+  const canvasP = (sc.draw&&DRAW[sc.draw.type]) ? DRAW[sc.draw.type](sc.draw,dur) : sleep(dur);
+  await Promise.all([ speak(sc.say), canvasP ]);
+  say.classList.remove("speaking");
+}
+
+async function run(){
+  const plan=PLANS[current]; if(!plan) return;
+  playing=true; gen.disabled=true; gen.textContent="● playing…";
+  $("#status").textContent="playing · "+current; narr.innerHTML=""; canvas.innerHTML="";
+  for(let i=0;i<plan.scenes.length;i++){ await playScene(plan.scenes[i]);
+    prog.style.width=((i+1)/plan.scenes.length*100)+"%"; await sleep(300); }
+  playing=false; gen.disabled=false; gen.textContent="↻ Replay";
+  $("#status").textContent="done · every number was grounded in source data";
+}
+gen.onclick=run;
+</script>
+</body>
+</html>
