@@ -10,7 +10,9 @@ const BG = '#05080c', VOLT = '#c6ff2e', WHITE = '#eef3f7', DIM = 'rgba(255,255,2
 export const TCOL = { VOLT, WHITE, DIM, AMBER, BLUE, RED };
 const MONO = 'ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace';
 
-export function createTerminal(W = 1024) {
+export function createTerminal(W = 1024, opts = {}) {
+  const TITLE = opts.title || 'PIT WALL ▸ SCENARIO TERMINAL';
+  const SHOW_PROMPT = opts.showPrompt !== false;
   const H = Math.round(W * 0.5625);
   const canvas = document.createElement('canvas');
   canvas.width = W; canvas.height = H;
@@ -41,19 +43,21 @@ export function createTerminal(W = 1024) {
     c.fillStyle = BG; c.fillRect(0, 0, W, H);
     c.textAlign = 'left'; c.textBaseline = 'alphabetic';
     c.fillStyle = VOLT; c.font = `800 ${Math.round(H * 0.052)}px ${MONO}`;
-    c.fillText('PIT WALL ▸ SCENARIO TERMINAL', W * 0.04, H * 0.1);
+    c.fillText(TITLE, W * 0.04, H * 0.1);
     c.strokeStyle = 'rgba(198,255,46,.3)'; c.lineWidth = 2;
     c.beginPath(); c.moveTo(W * 0.04, H * 0.135); c.lineTo(W * 0.96, H * 0.135); c.stroke();
     c.font = `600 ${Math.round(H * 0.039)}px ${MONO}`;
     const lh = H * 0.052, y0 = H * 0.21;
     lines.forEach((ln, i) => { c.fillStyle = ln.c; c.fillText(ln.t, W * 0.04, y0 + i * lh); });
-    // active input line — type straight into the billboard
-    const py = y0 + Math.min(lines.length, MAXLINES) * lh;
-    c.fillStyle = VOLT; c.fillText('▸ ', W * 0.04, py);
-    const px = W * 0.04 + c.measureText('▸ ').width;
-    const shown = prompt.length > WRAP - 3 ? '…' + prompt.slice(-(WRAP - 4)) : prompt;
-    c.fillStyle = WHITE; c.fillText(shown, px, py);
-    if (Math.floor(t * 2) % 2) { c.fillStyle = VOLT; c.fillText('▌', px + c.measureText(shown).width, py); }
+    if (SHOW_PROMPT) {
+      // active input line — type straight into the billboard
+      const py = y0 + Math.min(lines.length, MAXLINES) * lh;
+      c.fillStyle = VOLT; c.fillText('▸ ', W * 0.04, py);
+      const px = W * 0.04 + c.measureText('▸ ').width;
+      const shown = prompt.length > WRAP - 3 ? '…' + prompt.slice(-(WRAP - 4)) : prompt;
+      c.fillStyle = WHITE; c.fillText(shown, px, py);
+      if (Math.floor(t * 2) % 2) { c.fillStyle = VOLT; c.fillText('▌', px + c.measureText(shown).width, py); }
+    }
     c.globalAlpha = 0.14; c.fillStyle = '#000';
     for (let y = 0; y < H; y += 5) c.fillRect(0, y, W, 1);
     for (let x = 0; x < W; x += 5) c.fillRect(x, 0, 1, H);

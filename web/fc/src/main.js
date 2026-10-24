@@ -167,7 +167,8 @@ function buildNavUI() {
   document.head.appendChild(style);
   const bar = document.createElement('div');
   bar.id = 'pwnav';
-  bar.innerHTML = '<button id="pw-auto">▶ AUTO RUN</button><button id="pw-view">◎ VIEW BOARD</button>' +
+  bar.innerHTML = '<button id="pw-auto">▶ AUTO RUN</button><button id="pw-logs">▤ LOGS</button>' +
+    '<button id="pw-view">◎ VIEW BOARD</button>' +
     '<button id="pw-prev">←</button><span id="pw-label">OVERVIEW</span><button id="pw-next">→</button>' +
     '<button id="pw-over">⤢ OVERVIEW</button><button id="pw-full" title="fullscreen">⛶</button>';
   document.body.appendChild(bar);
@@ -177,7 +178,8 @@ function buildNavUI() {
   document.getElementById('pw-prev').addEventListener('click', () => { focusBoard(cur() - 1); hideMenu(); });
   document.getElementById('pw-next').addEventListener('click', () => { focusBoard(cur() + 1); hideMenu(); });
   document.getElementById('pw-auto').addEventListener('click', activateAuto);
-  document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); deactivateReport(); deactivateHistory(); deactivateScore(); deactivateAuto(); if (window.__pwShowMenu) window.__pwShowMenu(); });
+  document.getElementById('pw-logs').addEventListener('click', activateLogs);
+  document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); deactivateReport(); deactivateHistory(); deactivateScore(); deactivateAuto(); deactivateLogs(); if (window.__pwShowMenu) window.__pwShowMenu(); });
   document.getElementById('pw-full').addEventListener('click', () => {
     const d = document.documentElement;
     if (document.fullscreenElement) document.exitFullscreen();
@@ -349,6 +351,55 @@ function deactivateAuto() {
 }
 window.__pwActivateAuto = activateAuto;
 window.__pwDeactivateAuto = deactivateAuto;
+
+// --- LOGS: the append-only audit log, live on a billboard (Traceability pillar) ---
+let logsTerminal = null, logsActive = false, logsTimer = null;
+const LOGS_SCREEN = 5;
+function logColor(r) {
+  if (!r.allowed) return TCOL.RED;
+  const a = r.action;
+  if (a === 'post' || a === 'approve') return TCOL.VOLT;
+  if (a === 'hold' || a === 'reject') return TCOL.RED;
+  if (a === 'propose') return TCOL.BLUE;
+  if (a === 'create' || a === 'sync') return TCOL.DIM;
+  return TCOL.WHITE;
+}
+async function refreshLogs() {
+  if (!logsActive || !logsTerminal) return;
+  let rows;
+  try { rows = await fetch('/api/audit-recent').then((r) => r.json()); }
+  catch (e) { logsTerminal.clear(); logsTerminal.write('(log backend offline — run make fc)', TCOL.RED); return; }
+  if (!logsActive) return;
+  const pad = (s, n) => (String(s == null ? '' : s) + ' '.repeat(n)).slice(0, n);
+  logsTerminal.clear();
+  logsTerminal.write('time     actor           action    subject            why', TCOL.DIM);
+  rows.slice().reverse().forEach((r) => {   // oldest→newest, newest at the bottom
+    const deny = r.allowed ? '' : '✗';
+    const line = pad(r.at, 9) + pad(r.actor, 16) + pad(r.action + deny, 10) + pad(r.subject, 19) + (r.reason || '').slice(0, 16);
+    logsTerminal.write(line, logColor(r));
+  });
+}
+function activateLogs() {
+  if (!logsTerminal) return;
+  const m = scene.getObjectByName('big_screen_' + LOGS_SCREEN);
+  if (m) { m.material.map = logsTerminal.texture; m.material.needsUpdate = true; }
+  logsActive = true;
+  focusBoard(LOGS_SCREEN);
+  if (window.__pwHideMenu) window.__pwHideMenu();
+  logsTerminal.clear();
+  logsTerminal.write('loading the append-only audit log…', TCOL.DIM);
+  refreshLogs();
+  if (logsTimer) clearInterval(logsTimer);
+  logsTimer = setInterval(refreshLogs, 3000);   // live — every call shows up
+}
+function deactivateLogs() {
+  const m = scene.getObjectByName('big_screen_' + LOGS_SCREEN);
+  if (m && pillars[LOGS_SCREEN]) { m.material.map = pillars[LOGS_SCREEN].texture; m.material.needsUpdate = true; }
+  logsActive = false;
+  if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
+}
+window.__pwActivateLogs = activateLogs;
+window.__pwDeactivateLogs = deactivateLogs;
 window.__pwHistStep = (d) => { if (historyActive) showHistEvent(histIdx + d); };
 // ← → step the chain while history is open (and nothing else sees the keys)
 window.addEventListener('keydown', (e) => {
@@ -439,6 +490,8 @@ function setupField() {
   autoReporter = createReporter(1280, {      // the autonomous-run billboard
     heading: 'PIT WALL ▸ AUTONOMOUS RUN', badge: 'NO HUMAN INPUT',
     onair: false, idleHint: 'autonomous run…' });
+  logsTerminal = createTerminal(1024, {      // the live append-only audit log
+    title: 'PIT WALL ▸ AUDIT LOG · APPEND-ONLY', showPrompt: false });
   // intro framing: the exact angle you picked (press "p" to re-capture)
   nav.dx = nav.tx = 44; nav.dy = nav.ty = 3; nav.dz = nav.tz = 0;
   nav.taz = nav.az = -1.592; nav.tpol = nav.pol = 0.233; nav.tr = nav.r = 96.2;
@@ -463,7 +516,7 @@ function frameUpdate(dt) {
   lighting.update(dt);
   if (stadium.update) stadium.update(dt);
   if (pitch.update) pitch.update(dt, match.state);
-  if (FIELD) { updateNav(dt); for (const p of pillars) p.update(dt); if (terminal && termActive) terminal.update(dt); if (reporter && reportActive) reporter.update(dt); if (historyReporter && historyActive) historyReporter.update(dt); if (scoreReporter && scoreActive) scoreReporter.update(dt); if (autoReporter && autoActive) autoReporter.update(dt); } else rig.update(dt);
+  if (FIELD) { updateNav(dt); for (const p of pillars) p.update(dt); if (terminal && termActive) terminal.update(dt); if (reporter && reportActive) reporter.update(dt); if (historyReporter && historyActive) historyReporter.update(dt); if (scoreReporter && scoreActive) scoreReporter.update(dt); if (autoReporter && autoActive) autoReporter.update(dt); if (logsTerminal && logsActive) logsTerminal.update(dt); } else rig.update(dt);
   if (!FIELD) hud.update(dt);
   if (!FIELD) commentary.update(dt); // no voicelines on the empty field
   if (!FIELD) audio.update(dt, ex);  // and no crowd audio
