@@ -192,7 +192,7 @@ function activateTerminal() {
   const m = scene.getObjectByName('big_screen_' + TERM_SCREEN);
   if (m) { m.material.map = terminal.texture; m.material.needsUpdate = true; }
   termActive = true;
-  focusBoard(TERM_SCREEN, true);   // fly in close so the board fills the screen
+  focusBoard(TERM_SCREEN);          // normal framing (⛶ for fullscreen on demand)
   if (window.__pwHideMenu) window.__pwHideMenu();
   if (window.__pwShowTermBar) window.__pwShowTermBar();
   terminal.clear();
@@ -215,7 +215,7 @@ function activateReport() {
   const m = scene.getObjectByName('big_screen_' + REPORT_SCREEN);
   if (m) { m.material.map = reporter.texture; m.material.needsUpdate = true; }
   reportActive = true;
-  focusBoard(REPORT_SCREEN, true);
+  focusBoard(REPORT_SCREEN);        // normal framing (⛶ for fullscreen on demand)
   if (window.__pwHideMenu) window.__pwHideMenu();
   reportPlayer.start('WI-5602');   // the fraud-hold decision, narrated + grounded
 }

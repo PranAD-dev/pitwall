@@ -15,6 +15,10 @@ ROLE_USERS = {
     "gateway": "gateway",
     "sync": "sync",
     "voice": "voice_readonly",
+    # Moss indexer: reads golden+work to build retrieval docs, writes ONLY the two
+    # telemetry tables (moss_outbox, retrieval_metric) + its own audit rows. It can
+    # never touch the ledger, installments, or payroll — limits in the DB, not a prompt.
+    "retrieval": "retrieval",
 }
 
 
@@ -33,6 +37,7 @@ class Settings(BaseSettings):
     pitwall_gateway_db_password: str = "gateway_dev"
     pitwall_sync_db_password: str = "sync_dev"
     pitwall_voice_db_password: str = "voice_dev"
+    pitwall_retrieval_db_password: str = "retrieval_dev"
     pitwall_database_url: str | None = None
 
     # --- world ---
@@ -59,6 +64,12 @@ class Settings(BaseSettings):
     livekit_api_key: str | None = None
     livekit_api_secret: str | None = None
     cartesia_api_key: str | None = None
+
+    # --- moss (semantic retrieval; Tiger stays the source of truth) ---
+    moss_project_id: str | None = None
+    moss_project_key: str | None = None
+    pitwall_moss_mode: str = "auto"          # auto | off  (auto = on iff creds present)
+    pitwall_moss_index_prefix: str = "pitwall"
 
     # ------------------------------------------------------------------ roles
     @property
