@@ -2010,21 +2010,21 @@ function makeRibbonTexture(W) {
     c.fillStyle = '#05070c';
     c.fillRect(0, 0, w, h);
     const blocks = [
-      ['#d1112b', VENUE.competition.toUpperCase()],
-      ['#12305f', 'ARMOR TELECOM'],
-      ['#0d5a3c', (VENUE.short || VENUE.name).toUpperCase()],
-      ['#5a2a72', 'KROAZ AIR'],
+      '◤ PIT WALL · AUTONOMOUS TRANSFER FINANCE',
+      '100% PRECISION · 0 VIOLATIONS',
+      'SQUAD-COST 68% / 70% · WITHIN LIMIT',
+      'EVERY DECISION — WHY IS ONE QUERY',
     ];
     const bw = w / blocks.length;
     for (let i = 0; i < blocks.length; i++) {
-      const [col, txt] = blocks[i];
+      const txt = blocks[i];
       const g = c.createLinearGradient(i * bw, 0, i * bw, h);
-      g.addColorStop(0, col);
+      g.addColorStop(0, i % 2 ? '#13330d' : '#0c2416');
       g.addColorStop(1, '#04060a');
       c.fillStyle = g;
       c.fillRect(i * bw + h * 0.12, 0, bw - h * 0.24, h);
-      c.fillStyle = '#fff9ec';
-      c.font = `800 ${Math.round(h * 0.5)}px "SF Pro Display","Helvetica Neue",Arial,sans-serif`;
+      c.fillStyle = '#c6ff2e';
+      c.font = `800 ${Math.round(h * 0.42)}px "SF Pro Display","Helvetica Neue",Arial,sans-serif`;
       c.textAlign = 'center';
       c.textBaseline = 'middle';
       c.fillText(txt, i * bw + bw / 2, h * 0.5);

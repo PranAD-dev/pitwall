@@ -325,6 +325,11 @@ async def scenario_stream(text: str) -> StreamingResponse:
 # --------------------------------------------------------------------------- #
 @app.get("/")
 def index() -> FileResponse:
+    return FileResponse(WEB / "home.html")
+
+
+@app.get("/control")
+def control_ui() -> FileResponse:
     return FileResponse(WEB / "scenario.html")
 
 
