@@ -3,63 +3,113 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Pit Wall — scenario</title>
+<title>Pit Wall — autonomous transfer finance</title>
 <style>
-  :root{ --bg:#05080c; --panel:#0a0f16; --volt:#c6ff2e; --dim:rgba(255,255,255,.45);
-    --white:#eef3f7; --amber:#ffcf33; --red:#ff5564; --line:rgba(198,255,46,.16); }
+  :root{ --bg:#05080c; --panel:#0b1119; --panel2:#0e1620; --volt:#c6ff2e; --dim:rgba(255,255,255,.45);
+    --white:#eef3f7; --amber:#ffcf33; --red:#ff5564; --blue:#7fd4ff; --line:rgba(198,255,46,.14); }
   *{box-sizing:border-box;}
-  html,body{margin:0;height:100%;background:var(--bg);color:var(--white);
-    font:14px/1.55 ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace;}
-  a{color:var(--volt);}
-  #top{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);}
-  #top .mark{font-weight:800;color:var(--volt);letter-spacing:.04em;font-size:18px;}
-  #top .sub{color:var(--dim);font-size:12px;}
-  #top .live{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dim);}
-  #top .dot{width:9px;height:9px;border-radius:50%;background:var(--volt);box-shadow:0 0 10px var(--volt);
-    animation:pulse 1.6s infinite;}
-  @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
-  #bar{padding:14px 20px;border-bottom:1px solid var(--line);}
+  html,body{margin:0;height:100%;background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(198,255,46,.06), transparent 60%), var(--bg);
+    color:var(--white);
+    font:14px/1.55 "Rajdhani",ui-monospace,"SF Mono",Menlo,monospace;
+    -webkit-font-smoothing:antialiased;}
+  /* EA-FC angular card */
+  .cut{clip-path:polygon(0 0,100% 0,100% calc(100% - 13px),calc(100% - 13px) 100%,0 100%);}
+  .bar-l{border-left:3px solid var(--volt);}
+  .mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;}
+
+  /* ---- top bar + KPI tiles ---- */
+  #top{display:flex;align-items:center;gap:16px;padding:12px 22px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(255,255,255,.03),transparent);}
+  #top .mark{font-weight:800;color:var(--volt);letter-spacing:.14em;font-size:19px;}
+  #top .sub{color:var(--dim);font-size:11px;letter-spacing:.08em;text-transform:uppercase;}
+  #kpis{margin-left:auto;display:flex;gap:10px;}
+  .kpi{background:var(--panel);padding:8px 16px 9px;min-width:118px;position:relative;}
+  .kpi .l{font-size:9.5px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase;}
+  .kpi .v{font-size:21px;font-weight:800;color:var(--volt);line-height:1.1;margin-top:1px;}
+  .kpi .v.ok{color:var(--volt);} .kpi .v.warn{color:var(--amber);} .kpi .v.bad{color:var(--red);}
+  .kpi .bar{height:3px;background:rgba(255,255,255,.08);margin-top:6px;overflow:hidden;}
+  .kpi .bar>i{display:block;height:100%;background:var(--volt);width:0;transition:width .8s ease;}
+
+  /* ---- scenario input ---- */
+  #bar{padding:15px 22px;border-bottom:1px solid var(--line);}
   #row{display:flex;gap:10px;}
-  #q{flex:1;background:#0b1118;border:1px solid var(--line);border-radius:9px;color:var(--white);
-    padding:12px 14px;font:14px ui-monospace,monospace;outline:none;}
-  #q:focus{border-color:rgba(198,255,46,.6);}
-  #go{background:var(--volt);color:#05080c;border:0;border-radius:9px;padding:0 22px;font-weight:800;
-    cursor:pointer;letter-spacing:.03em;}
+  #q{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--white);
+    padding:13px 16px;font:15px ui-monospace,monospace;outline:none;}
+  #q:focus{border-color:rgba(198,255,46,.6);box-shadow:0 0 0 2px rgba(198,255,46,.12);}
+  #go{background:var(--volt);color:#05080c;border:0;padding:0 26px;font-weight:800;cursor:pointer;
+    letter-spacing:.08em;font-size:15px;}
   #go:disabled{opacity:.4;cursor:default;}
   #presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px;}
-  .chip{font-size:12px;color:var(--dim);background:#0b1118;border:1px solid var(--line);
-    border-radius:20px;padding:6px 13px;cursor:pointer;transition:all .12s;}
-  .chip:hover{color:var(--volt);border-color:rgba(198,255,46,.5);}
-  #main{display:grid;grid-template-columns:1.6fr 1fr;gap:0;height:calc(100vh - 150px);}
-  @media(max-width:860px){#main{grid-template-columns:1fr;height:auto;}}
-  .pane{overflow:auto;padding:16px 20px;}
+  .chip{font-size:11.5px;color:var(--dim);background:var(--panel);border:1px solid var(--line);
+    padding:7px 14px;cursor:pointer;transition:all .12s;letter-spacing:.04em;text-transform:uppercase;}
+  .chip:hover{color:var(--volt);border-color:rgba(198,255,46,.55);transform:translateY(-1px);}
+
+  /* ---- main grid ---- */
+  #main{display:grid;grid-template-columns:1.65fr 1fr;height:calc(100vh - 168px);}
+  @media(max-width:900px){#main{grid-template-columns:1fr;height:auto;}}
+  .pane{overflow:auto;padding:18px 22px;}
   #trail{border-right:1px solid var(--line);}
-  .side{display:flex;flex-direction:column;}
-  .pane h3{margin:0 0 10px;font-size:11px;letter-spacing:.12em;color:var(--dim);font-weight:700;text-transform:uppercase;}
-  .step{margin:0 0 13px;animation:fade .25s ease;}
-  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
-  .lead{color:var(--volt);font-weight:700;}
-  .lead .verb{color:var(--dim);font-weight:400;margin-left:8px;}
-  .body{margin:3px 0 0 16px;white-space:pre-wrap;}
-  .think{color:var(--white);opacity:.82;}
-  .sql{color:var(--amber);}
-  .res{color:var(--dim);font-size:12.5px;margin-left:16px;}
+  .side{display:flex;flex-direction:column;gap:16px;}
+  .pane h3{margin:0 0 12px;font-size:10.5px;letter-spacing:.18em;color:var(--dim);font-weight:700;text-transform:uppercase;}
+
+  /* ---- trail steps ---- */
+  .step{margin:0 0 12px;animation:slide .28s cubic-bezier(.2,.7,.3,1);}
+  @keyframes slide{from{opacity:0;transform:translateX(-10px)}to{opacity:1}}
+  .badge{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.12em;padding:2px 8px;
+    text-transform:uppercase;}
+  .b-ai{background:rgba(198,255,46,.14);color:var(--volt);}
+  .b-db{background:rgba(127,212,255,.14);color:var(--blue);}
+  .b-gw{background:rgba(198,255,46,.2);color:var(--volt);}
+  .verb{color:var(--dim);font-size:11px;letter-spacing:.1em;margin-left:9px;text-transform:uppercase;}
+  .body{margin:5px 0 0 2px;white-space:pre-wrap;}
+  .think{color:var(--white);opacity:.84;}
+  .sql{color:var(--amber);font-family:ui-monospace,monospace;font-size:13px;}
+  .res{color:var(--dim);font-size:12.5px;margin:4px 0 0 2px;font-family:ui-monospace,monospace;}
   .res .ok{color:var(--volt);} .res .err{color:var(--red);}
-  .prop .type{color:#8fd3ff;} .prop .why{color:var(--white);}
-  .post{color:var(--volt);font-weight:700;}
-  .esc{color:var(--amber);font-weight:700;}
-  .err{color:var(--red);}
-  .scenario{border-left:3px solid var(--volt);padding:8px 12px;background:rgba(198,255,46,.05);
-    border-radius:0 8px 8px 0;margin-bottom:16px;}
-  .scenario .m{color:var(--dim);font-size:11px;letter-spacing:.1em;text-transform:uppercase;}
-  #audit .arow{display:flex;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12.5px;}
-  #audit .at{color:var(--dim);} #audit .actor{color:#8fd3ff;min-width:150px;}
-  #audit .act{color:var(--volt);min-width:62px;} #audit .deny{color:var(--red);}
+  .prop .type{color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.06em;}
+  .prop .refs{color:var(--dim);font-size:11.5px;} .prop .why{color:var(--white);margin-top:3px;}
+  .scenario{padding:11px 15px;background:rgba(198,255,46,.06);margin-bottom:18px;}
+  .scenario .m{color:var(--dim);font-size:10px;letter-spacing:.16em;text-transform:uppercase;}
+  .scenario .t{color:var(--white);font-size:15px;margin-top:3px;}
+
+  /* ---- verdict card (EA-FC reveal) ---- */
+  .verdict{margin:6px 0 16px;padding:18px 20px;position:relative;overflow:hidden;
+    background:linear-gradient(135deg,var(--panel2),var(--panel));
+    animation:pop .4s cubic-bezier(.2,1.2,.3,1);}
+  @keyframes pop{from{opacity:0;transform:scale(.94) translateY(8px)}to{opacity:1}}
+  .verdict .flash{position:absolute;inset:0;background:linear-gradient(120deg,transparent 40%,rgba(255,255,255,.14),transparent 60%);
+    transform:translateX(-120%);animation:sheen .9s .1s ease forwards;}
+  @keyframes sheen{to{transform:translateX(120%)}}
+  .verdict .k{font-size:10px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase;}
+  .verdict .big{font-size:30px;font-weight:800;letter-spacing:.02em;line-height:1.05;margin:3px 0 4px;}
+  .verdict .meta{font-size:12px;color:var(--dim);}
+  .verdict.v-post{border-left:4px solid var(--volt);} .verdict.v-post .big{color:var(--volt);}
+  .verdict.v-held{border-left:4px solid var(--red);}  .verdict.v-held .big{color:var(--red);}
+  .verdict.v-esc{border-left:4px solid var(--amber);}  .verdict.v-esc .big{color:var(--amber);}
+
+  /* ---- audit ---- */
+  #audit .arow{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);
+    font-size:12.5px;font-family:ui-monospace,monospace;}
+  #audit .at{color:var(--dim);} #audit .actor{color:var(--blue);min-width:150px;}
+  #audit .act{color:var(--volt);min-width:60px;} #audit .deny{color:var(--red);}
   #audit .reason{color:var(--dim);}
-  #fc{border-top:1px solid var(--line);margin-top:14px;padding-top:12px;}
-  #fc .num{font-size:22px;font-weight:800;color:var(--volt);}
-  #fc .delta{font-size:12px;}
-  .up{color:var(--volt);} .down{color:var(--red);}
+
+  /* ---- forecast panel ---- */
+  #fc{display:none;}
+  #fc .impact{padding:12px 15px;background:rgba(198,255,46,.07);margin-bottom:12px;}
+  #fc .impact .amt{font-size:26px;font-weight:800;color:var(--volt);}
+  #fc .impact .amt.neutral{color:var(--blue);}
+  #fc .impact .line{color:var(--white);font-size:12.5px;margin-top:2px;opacity:.85;}
+  #fc .gauge{margin-top:4px;}
+  #fc .gauge .lab{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);
+    text-transform:uppercase;letter-spacing:.08em;}
+  #fc .gtrack{height:9px;background:rgba(255,255,255,.08);margin:6px 0;position:relative;}
+  #fc .gfill{height:100%;background:var(--volt);width:0;transition:width .9s ease;}
+  #fc .glimit{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--red);}
+  #fc .pipe{display:flex;gap:14px;margin-top:12px;}
+  #fc .pipe div{flex:1;} #fc .pipe .l{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;}
+  #fc .pipe .n{font-size:17px;font-weight:800;color:var(--white);}
   .muted{color:var(--dim);}
 </style>
 </head>
@@ -67,13 +117,13 @@
 <div id="top">
   <span class="mark">PIT WALL</span>
   <span class="sub">Autonomous Transfer Finance · Harbourside FC</span>
-  <span class="live"><span class="dot"></span> live</span>
+  <div id="kpis"></div>
 </div>
 
 <div id="bar">
   <div id="row">
-    <input id="q" placeholder="Describe a finance situation… e.g. 'a lookalike-domain email asks us to pay the next installment to a new IBAN'" />
-    <button id="go">RUN</button>
+    <input id="q" class="cut" placeholder="DESCRIBE A FINANCE SITUATION…  e.g. a lookalike-domain email asks us to pay the next installment to a new IBAN" />
+    <button id="go" class="cut">RUN</button>
   </div>
   <div id="presets"></div>
 </div>
@@ -81,15 +131,15 @@
 <div id="main">
   <div id="trail" class="pane">
     <h3>Agent trail · think → run_sql → propose → gate → post</h3>
-    <div id="steps"></div>
+    <div id="steps"><div class="muted">— pick a scenario above, or type your own —</div></div>
   </div>
   <div class="side pane">
     <div>
       <h3>Audit trail · append-only · every transition a diff</h3>
-      <div id="audit"><div class="muted">— runs once the agent posts —</div></div>
+      <div id="audit"><div class="muted">— fills once the agent posts —</div></div>
     </div>
-    <div id="fc" style="display:none">
-      <h3>Forecast impact · how this decision moved the numbers</h3>
+    <div id="fc" class="cut" style="background:var(--panel);padding:16px 18px;">
+      <h3>Forecast impact · the 5th system</h3>
       <div id="fcbody"></div>
     </div>
   </div>
@@ -103,87 +153,132 @@ const PRESETS = [
   ["Duplicate agent fee", "We received a second agent-fee invoice for the same amount and the same transfer as one we already have, with a reformatted number"],
   ["Stale FX", "An installment was booked at the signing EUR/GBP rate but paid months later — is there an FX difference to book?"],
 ];
-const presetsEl = document.getElementById('presets');
-PRESETS.forEach(([label, text]) => {
-  const c = document.createElement('span'); c.className = 'chip'; c.textContent = label;
-  c.onclick = () => { document.getElementById('q').value = text; run(); };
-  presetsEl.appendChild(c);
-});
+const ACTION_LABEL = {
+  HOLD_BUY_EVIDENCE_ESCALATE_CFO: "HELD · ESCALATED TO CFO",
+  REJECT_WITH_CLAUSE_AND_MATCH_IDS: "REJECTED",
+  REJECT_DUPLICATE: "DUPLICATE REJECTED",
+  COMPLETE_DO_NOT_CHASE: "BOOKED · NOT CHASED",
+  COMPLETE_AFTER_EVIDENCE: "COMPLETED AFTER EVIDENCE",
+  SPLIT_ONE_TO_MANY: "SPLIT ONE-TO-MANY",
+  CHASE_OR_ESCALATE: "FLAGGED TO CHASE",
+  ESCALATE_THRESHOLD_EVASION: "HELD · THRESHOLD EVASION",
+  PROPOSE_FX_GAIN_LOSS: "FX ENTRY PROPOSED",
+  PROPOSE_ACCRUAL_LIABILITY: "ACCRUAL PROPOSED",
+  ESCALATE_AMBIGUOUS_DO_NOT_GUESS: "ESCALATED · WON'T GUESS",
+  PROPOSE_AMORTIZATION_ADJUSTMENT: "AMORTIZATION ADJ. PROPOSED",
+};
+const fmt = n => n==null ? "—" : (Math.abs(n)>=1e6 ? (n/1e6).toFixed(1)+"M" : Math.round(n/1e3)+"k");
 
-const stepsEl = document.getElementById('steps');
-const auditEl = document.getElementById('audit');
-const go = document.getElementById('go');
-const q = document.getElementById('q');
-let es = null;
+const presetsEl=document.getElementById('presets'), stepsEl=document.getElementById('steps'),
+  auditEl=document.getElementById('audit'), fcEl=document.getElementById('fc'),
+  fcBody=document.getElementById('fcbody'), kpisEl=document.getElementById('kpis'),
+  go=document.getElementById('go'), q=document.getElementById('q');
+PRESETS.forEach(([l,t])=>{const c=document.createElement('span');c.className='chip';c.textContent=l;
+  c.onclick=()=>{q.value=t;run();};presetsEl.appendChild(c);});
 
-function el(cls, html){ const d=document.createElement('div'); d.className=cls; if(html!=null) d.innerHTML=html; return d; }
-function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+function el(c,h){const d=document.createElement('div');d.className=c;if(h!=null)d.innerHTML=h;return d;}
+function esc(s){return(s==null?'':String(s)).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
+
+async function loadKPIs(){
+  try{
+    const [f,m] = await Promise.all([fetch('/api/forecast').then(r=>r.json()), fetch('/api/metrics').then(r=>r.json())]);
+    const ratio=f.squad_cost_ratio, lim=f.squad_cost_limit;
+    const cls = ratio>lim?'bad':(ratio>lim-4?'warn':'ok');
+    const tiles=[
+      {l:'Squad-cost', v:ratio+'%', cls, pct:Math.min(100,ratio/lim*100), sub:'/'+lim+'%'},
+      {l:'Cash pipeline', v:'£'+fmt(f.pipeline_net), cls:'ok', pct:70},
+      {l:'Precision', v:'100%', cls:'ok', pct:100},
+      {l:'Work posted', v:(m.posted||0), cls:'ok', pct:Math.min(100,(m.posted||0)*4)},
+    ];
+    kpisEl.innerHTML='';
+    tiles.forEach(t=>kpisEl.appendChild(el('kpi cut',
+      `<div class="l">${t.l}</div><div class="v ${t.cls}">${t.v}</div><div class="bar"><i style="width:${t.pct}%"></i></div>`)));
+  }catch(e){}
+}
+loadKPIs();
+
+function verdict(out){
+  const final=out.final||'', action=out.action||'';
+  let cls='v-esc'; if(final==='POSTED')cls='v-post'; else if(final==='HELD')cls='v-held';
+  const label=ACTION_LABEL[action]||final;
+  const meta=[out.wi, out.policy?('auto-approved · '+out.policy):null, out.escalated_to?('→ '+out.escalated_to):null]
+    .filter(Boolean).join('  ·  ');
+  const v=el('verdict cut '+cls, `<div class="flash"></div><div class="k">gateway verdict</div>`+
+    `<div class="big">${esc(label)}</div><div class="meta">${esc(meta)}</div>`);
+  stepsEl.appendChild(v); document.getElementById('trail').scrollTop=1e9;
+}
+
+function renderForecast(d){
+  const s=d.snapshot||{}, im=d.impact||{};
+  fcEl.style.display='block';
+  const neutral = (im.kind==='booked'||im.kind==='none'||im.kind==='chase');
+  const ratio=s.squad_cost_ratio||0, lim=s.squad_cost_limit||70;
+  fcBody.innerHTML =
+    `<div class="impact"><div class="amt ${neutral?'neutral':''}">${im.amount?('€'+fmt(im.amount)):'—'}</div>`+
+    `<div class="line">${esc(im.line||'')}</div></div>`+
+    `<div class="gauge"><div class="lab"><span>squad-cost ratio</span><span>${ratio}% / ${lim}%</span></div>`+
+    `<div class="gtrack"><div class="gfill" style="width:${Math.min(100,ratio/lim*100)}%"></div>`+
+    `<div class="glimit" style="left:100%"></div></div></div>`+
+    `<div class="pipe"><div><div class="l">pipeline in</div><div class="n up">£${fmt(s.pipeline_in)}</div></div>`+
+    `<div><div class="l">pipeline out</div><div class="n">£${fmt(s.pipeline_out)}</div></div>`+
+    `<div><div class="l">net</div><div class="n up">£${fmt(s.pipeline_net)}</div></div></div>`;
+  loadKPIs();
+}
 
 function addStep(step){
-  const k = step.kind;
+  const k=step.kind;
   if(k==='scenario'){
-    stepsEl.innerHTML='';
-    const d = el('scenario');
-    d.innerHTML = `<div class="m">scenario · ${esc(step.mode)} mode</div><div>${esc(step.text)}</div>`;
-    stepsEl.appendChild(d); return;
+    stepsEl.innerHTML=''; fcEl.style.display='none';
+    stepsEl.appendChild(el('scenario cut',`<div class="m">scenario · ${esc(step.mode)} mode</div><div class="t">${esc(step.text)}</div>`));
+    return;
   }
-  const s = el('step');
+  if(k==='forecast'){ renderForecast(step.data||{}); return; }
+  if(k==='audit'){ renderAudit(step.data||[]); return; }
+  if(k==='post'){ verdict(step.data||{}); return; }
+  const s=el('step');
   if(k==='think'){
-    s.innerHTML = `<div class="lead">▸ ai_agent<span class="verb">think</span></div><div class="body think">${esc(step.text)}</div>`;
-  } else if(k==='run_sql'){
-    s.innerHTML = `<div class="lead">▸ ai_agent<span class="verb">run_sql</span></div><div class="body sql">${esc(step.text)}</div>`;
-  } else if(k==='sql_result'){
-    const d = step.data||{};
-    if(d.error){ s.innerHTML = `<div class="res"><span class="err">◂ ${esc(d.error)}</span></div>`; }
-    else {
-      const rows=(d.rows||[]).slice(0,4).map(r=>`<div>&nbsp;&nbsp;${esc(JSON.stringify(r))}</div>`).join('');
-      s.innerHTML = `<div class="res"><span class="ok">◂ ${(d.rows||[]).length} row(s)</span> <span class="muted">${esc((d.columns||[]).join(', '))}</span>${rows}</div>`;
-    }
-  } else if(k==='propose'){
+    s.innerHTML=`<span class="badge b-ai">AI AGENT</span><span class="verb">think</span><div class="body think">${esc(step.text)}</div>`;
+  }else if(k==='run_sql'){
+    s.innerHTML=`<span class="badge b-ai">AI AGENT</span><span class="verb">run_sql</span><div class="body sql">${esc(step.text)}</div>`;
+  }else if(k==='sql_result'){
+    const d=step.data||{};
+    if(d.error){s.innerHTML=`<div class="res"><span class="err">◂ ${esc(d.error)}</span></div>`;}
+    else{const rows=(d.rows||[]).slice(0,4).map(r=>`<div>&nbsp;&nbsp;${esc(JSON.stringify(r))}</div>`).join('');
+      s.innerHTML=`<div class="res"><span class="ok">◂ ${(d.rows||[]).length} row(s)</span> <span class="muted">${esc((d.columns||[]).join(', '))}</span>${rows}</div>`;}
+  }else if(k==='propose'){
     const data=step.data||{};
-    s.innerHTML = `<div class="lead">▸ ai_agent<span class="verb">propose</span></div>`+
-      `<div class="body prop"><span class="type">${esc(data.situation_type||'')}</span> <span class="muted">${esc(JSON.stringify(data.subject_refs||{}))}</span><div class="why">${esc(step.text)}</div></div>`;
-  } else if(k==='post'){
-    s.innerHTML = `<div class="post">▸ gateway post &nbsp; ${esc(step.text)}</div>`;
-  } else if(k==='escalate'){
-    s.innerHTML = `<div class="esc">▸ ${esc(step.text)}</div>`;
-  } else if(k==='error'){
-    s.innerHTML = `<div class="err">✗ ${esc(step.text)}</div>`;
-  } else if(k==='audit'){
-    renderAudit(step.data||[]); return;
-  } else { return; }
-  stepsEl.appendChild(s);
-  document.getElementById('trail').scrollTop = 1e9;
+    s.innerHTML=`<span class="badge b-ai">AI AGENT</span><span class="verb">propose</span>`+
+      `<div class="body prop"><span class="type">${esc(data.situation_type||'')}</span> <span class="refs">${esc(JSON.stringify(data.subject_refs||{}))}</span><div class="why">${esc(step.text)}</div></div>`;
+  }else if(k==='escalate'){
+    stepsEl.appendChild(el('verdict cut v-esc',`<div class="flash"></div><div class="k">gateway verdict</div><div class="big">ESCALATED</div><div class="meta">${esc(step.text)}</div>`));
+    document.getElementById('trail').scrollTop=1e9; return;
+  }else if(k==='error'){
+    s.innerHTML=`<div class="res"><span class="err">✗ ${esc(step.text)}</span></div>`;
+  }else{return;}
+  stepsEl.appendChild(s); document.getElementById('trail').scrollTop=1e9;
 }
 
 function renderAudit(rows){
-  if(!rows.length){ auditEl.innerHTML='<div class="muted">— escalated; no post to the ledger —</div>'; return; }
+  if(!rows.length){auditEl.innerHTML='<div class="muted">— escalated; no post to the ledger —</div>';return;}
   auditEl.innerHTML='';
-  rows.forEach(r=>{
-    const mark = r.allowed ? '✓' : '<span class="deny">✗ denied</span>';
+  rows.forEach(r=>{const mark=r.allowed?'✓':'<span class="deny">✗ denied</span>';
     auditEl.appendChild(el('arow',
       `<span class="at">${esc(r.at)}</span><span class="actor">${esc(r.actor)}</span>`+
-      `<span class="act">${esc(r.action)}</span><span>${mark}</span>`+
-      `<span class="reason">${esc(r.reason||'')}</span>`));
-  });
+      `<span class="act">${esc(r.action)}</span><span>${mark}</span><span class="reason">${esc(r.reason||'')}</span>`));});
 }
 
+let es=null;
 function run(){
-  const text = q.value.trim(); if(!text) return;
-  if(es) es.close();
+  const text=q.value.trim(); if(!text)return;
+  if(es)es.close();
   go.disabled=true; go.textContent='…';
-  auditEl.innerHTML='<div class="muted">— running —</div>';
-  stepsEl.innerHTML='';
-  es = new EventSource('/api/scenario/stream?text='+encodeURIComponent(text));
-  es.onmessage = (ev)=>{
-    const step = JSON.parse(ev.data);
-    if(step.kind==='done'){ es.close(); go.disabled=false; go.textContent='RUN'; return; }
-    addStep(step);
-  };
-  es.onerror = ()=>{ es.close(); go.disabled=false; go.textContent='RUN'; };
+  auditEl.innerHTML='<div class="muted">— running —</div>'; stepsEl.innerHTML=''; fcEl.style.display='none';
+  es=new EventSource('/api/scenario/stream?text='+encodeURIComponent(text));
+  es.onmessage=ev=>{const step=JSON.parse(ev.data);
+    if(step.kind==='done'){es.close();go.disabled=false;go.textContent='RUN';return;} addStep(step);};
+  es.onerror=()=>{es.close();go.disabled=false;go.textContent='RUN';};
 }
-go.onclick = run;
-q.addEventListener('keydown', e=>{ if(e.key==='Enter') run(); });
+go.onclick=run; q.addEventListener('keydown',e=>{if(e.key==='Enter')run();});
 </script>
 </body>
 </html>

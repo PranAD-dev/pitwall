@@ -108,6 +108,14 @@ def feed() -> list[dict]:
     return out
 
 
+@app.get("/api/forecast")
+def forecast() -> dict:
+    """The forecast system of record (slide 7) — projected cash + squad-cost ratio."""
+    from pitwall.agent.forecast import snapshot
+
+    return snapshot()
+
+
 @app.get("/api/audit/{subject}")
 def audit(subject: str) -> list[dict]:
     rows = _rows(

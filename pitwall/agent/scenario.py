@@ -239,6 +239,14 @@ def run_scenario(text: str, emit) -> dict:
         emit({"actor": "ai_agent", "kind": "escalate",
               "text": "novel or incomplete — escalating to human_controller (code refuses to guess)"})
 
+    # forecast ripple (deck slide 7: the 5th system) — how this decision moved the numbers
+    try:
+        from .forecast import impact, snapshot
+        emit({"actor": "forecast", "kind": "forecast",
+              "data": {"snapshot": snapshot(), "impact": impact(stype, sr)}})
+    except Exception:
+        pass
+
     trail = _audit_trail(wi)
     emit({"actor": "system", "kind": "audit", "data": trail})
     return {"ok": True, "wi": wi, "audit": trail}
