@@ -7,17 +7,42 @@
 // ---------------------------------------------------------------------------
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const hasTTS = typeof speechSynthesis !== 'undefined';
 
+// Browsers gate speech synthesis behind a user gesture and load voices lazily.
+// prime() must be called from a click/tap; ensureVoices waits for the list.
+export function primeSpeech() {
+  if (!hasTTS) return;
+  try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch (e) {}
+}
+function ensureVoices() {
+  return new Promise((resolve) => {
+    if (!hasTTS) return resolve();
+    if ((speechSynthesis.getVoices() || []).length) return resolve();
+    let done = false; const fin = () => { if (!done) { done = true; resolve(); } };
+    speechSynthesis.onvoiceschanged = fin;
+    setTimeout(fin, 1200);
+  });
+}
+function pickVoice() {
+  if (!hasTTS) return null;
+  const vs = speechSynthesis.getVoices() || [];
+  return vs.find((v) => /^en/i.test(v.lang) && /Google|Samantha|Daniel|Karen|Serena/i.test(v.name))
+    || vs.find((v) => /^en-US/i.test(v.lang)) || vs.find((v) => /^en/i.test(v.lang)) || vs[0] || null;
+}
 function speakLine(text) {
   return new Promise((resolve) => {
+    const t = String(text || '').trim();
+    if (!hasTTS || !t) return resolve();
     try {
       speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(String(text || ''));
-      u.rate = 1.03;
+      const u = new SpeechSynthesisUtterance(t);
+      u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
+      const v = pickVoice(); if (v) u.voice = v;
       let done = false; const fin = () => { if (!done) { done = true; resolve(); } };
       u.onend = fin; u.onerror = fin;
       speechSynthesis.speak(u);
-      setTimeout(fin, 12000);                    // safety if onend never fires
+      setTimeout(fin, Math.max(6000, t.length * 95));   // watchdog if onend never fires
     } catch (e) { resolve(); }
   });
 }
@@ -30,10 +55,15 @@ export function createLiveReport({ reporter }) {
     reporter.setSource(source);
     const scenes = plan.scenes || [];
     if (!scenes.length) { reporter.idle(plan.error ? ('report unavailable — ' + plan.error) : 'no scenes'); return; }
+    await ensureVoices();
     for (let i = 0; i < scenes.length && running; i++) {
+      const say = scenes[i].say || '';
       reporter.showScene(scenes[i], i, scenes.length);
-      await Promise.race([speakLine(scenes[i].say), wait(6500)]);   // pace to speech, cap per scene
-      if (running) await wait(400);
+      // readable minimum per scene, extended to the spoken length — never races ahead
+      const words = say.split(/\s+/).filter(Boolean).length;
+      const dwell = Math.max(4500, words * 380 + 1200);
+      await Promise.all([Promise.race([speakLine(say), wait(16000)]), wait(dwell)]);
+      if (running) await wait(600);
     }
   }
 
@@ -51,13 +81,23 @@ export function createLiveReport({ reporter }) {
     await Promise.race([room.connect(tok.url, tok.token),
       wait(timeoutMs).then(() => { throw new Error('connect-timeout'); })]);
     reporter.idle('connected · asking the report agent…');
+    await ensureVoices();
     const dec = new TextDecoder(), enc = new TextEncoder();
-    let got = false;
+    let got = false, busy = Promise.resolve();
     room.on(LK.RoomEvent.DataReceived, (payload, participant, kind, topic) => {
       let msg; try { msg = JSON.parse(dec.decode(payload)); } catch (e) { return; }
       if (topic === 'lk.explain-plan' && msg.plan) { got = true; reporter.setTitle(msg.plan.title || 'report'); reporter.setSource('live · livekit'); }
-      else if (topic === 'lk.explain-scene' && msg.scene) { got = true; reporter.showScene(msg.scene, msg.index || 0, msg.total || 0); speakLine(msg.scene.say); }
-      else if (topic === 'lk.explain-error') reporter.idle('agent error — ' + (msg.error || ''));
+      else if (topic === 'lk.explain-scene' && msg.scene) {
+        got = true;
+        // serialize scenes so speech doesn't overlap even if the agent streams fast
+        busy = busy.then(async () => {
+          if (!running) return;
+          reporter.showScene(msg.scene, msg.index || 0, msg.total || 0);
+          const say = msg.scene.say || '';
+          const dwell = Math.max(4500, say.split(/\s+/).filter(Boolean).length * 380 + 1200);
+          await Promise.all([Promise.race([speakLine(say), wait(16000)]), wait(dwell)]);
+        });
+      } else if (topic === 'lk.explain-error') reporter.idle('agent error — ' + (msg.error || ''));
     });
     await room.localParticipant.publishData(
       enc.encode(JSON.stringify({ requestId: 'r-' + subject, subject })), { reliable: true, topic: 'lk.explain-request' });
@@ -68,6 +108,7 @@ export function createLiveReport({ reporter }) {
   async function start(subject) {
     if (running) return;
     running = true;
+    primeSpeech();                                       // unlock audio on this gesture
     const wi = subject || 'WI-5602';
     reporter.showScene(null); reporter.setSource('connecting…');
     try {

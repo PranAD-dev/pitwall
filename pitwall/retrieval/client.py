@@ -94,7 +94,7 @@ class _Bridge:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._client: Any = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()  # reentrant: _ensure_client calls _ensure_loop under it
 
     def _ensure_loop(self) -> asyncio.AbstractEventLoop:
         if self._loop is None:
@@ -123,7 +123,7 @@ class _Bridge:
 
                         return MossClient(s.moss_project_id, s.moss_project_key)
 
-                    self._client = asyncio.run_coroutine_threadsafe(_make(), loop).result()
+                    self._client = asyncio.run_coroutine_threadsafe(_make(), loop).result(30)
         return self._client
 
     def run(self, make_coro: Callable[[Any], Coroutine], *, timeout: float = 60.0) -> Any:

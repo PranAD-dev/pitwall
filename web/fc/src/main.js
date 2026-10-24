@@ -16,7 +16,10 @@ import { createAudio } from './audio.js';
 import { PILLAR_KEYS, createPillar } from './pillars.js';
 import { TCOL, createTerminal } from './terminal.js';
 import { createReporter } from './reporter.js';
-import { createLiveReport } from './livereport.js';
+import { createLiveReport, primeSpeech } from './livereport.js';
+
+// unlock speech synthesis on the very first user gesture (browsers gate it)
+window.addEventListener('pointerdown', () => primeSpeech(), { once: true });
 
 const params = new URLSearchParams(location.search);
 const SEED = parseInt(params.get('seed') || '7', 10);
