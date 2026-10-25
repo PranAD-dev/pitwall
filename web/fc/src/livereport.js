@@ -92,10 +92,10 @@ export function createLiveReport({ reporter }) {
     const secs = rep.sections || [];
     for (let i = 0; i < secs.length && running; i++) {
       const say = secs[i].say || '';
-      reporter.showScene(secs[i], i, secs.length);
-      const dwell = Math.max(5000, say.split(/\s+/).filter(Boolean).length * 380 + 1200);
+      reporter.showScene(secs[i], i, secs.length, { build: true });   // Opennote-style build
+      const dwell = Math.max(5500, say.split(/\s+/).filter(Boolean).length * 380 + 1800);
       await Promise.all([Promise.race([speakLine(say), wait(16000)]), wait(dwell)]);
-      if (running) await wait(600);
+      if (running) await wait(700);
     }
   }
 

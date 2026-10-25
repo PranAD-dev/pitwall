@@ -28,11 +28,31 @@ export function createReporter(W = 1280, opts = {}) {
 
   let title = 'FINANCE REPORT', source = 'standby', scene = null, idx = 0, total = 0;
   let t = 0, lastFrame = -1, dirty = true;
+  // Opennote-style build: caption types on, then table/evidence rows drop in one by one.
+  let building = false, revealT = 0, sayLen = 0, capDur = 0, buildDur = 0;
+  const ROW_DUR = 0.34;
 
   function setTitle(x) { title = String(x || 'FINANCE REPORT'); dirty = true; }
   function setSource(x) { source = String(x || ''); dirty = true; }
-  function idle(msg) { scene = { _idle: msg || 'waiting for the report agent…' }; dirty = true; }
-  function showScene(s, i, n) { scene = s || null; idx = (i | 0); total = (n | 0); dirty = true; }
+  function idle(msg) { scene = { _idle: msg || 'waiting for the report agent…' }; building = false; dirty = true; }
+  function showScene(s, i, n, opts) {
+    scene = s || null; idx = (i | 0); total = (n | 0); dirty = true;
+    building = !!(opts && opts.build);
+    revealT = 0;
+    sayLen = (s && s.say || '').length;
+    const d = (s && s.draw) || {};
+    const nrows = ((d.rows || d.items || d.lines || d.boxes || []).length) || 0;
+    capDur = Math.max(0.4, sayLen * 0.028);
+    buildDur = capDur + nrows * ROW_DUR;
+  }
+  function revealedDraw(d, k) {
+    const o = { ...d };
+    if (d.rows) o.rows = d.rows.slice(0, Math.max(0, k));
+    if (d.items) o.items = d.items.slice(0, Math.max(0, k));
+    if (d.lines) o.lines = d.lines.slice(0, Math.max(0, k));
+    if (d.boxes) o.boxes = d.boxes.slice(0, Math.max(0, k));
+    return o;
+  }
 
   // --- small canvas helpers --------------------------------------------------
   function wrap(text, font, maxW) {
@@ -145,14 +165,19 @@ export function createReporter(W = 1280, opts = {}) {
       const dots = '.'.repeat(1 + (Math.floor(t * 2) % 3));
       c.fillStyle = VOLT; c.fillText(dots, L, H * 0.42);
     } else {
-      // spoken caption
+      // spoken caption — types on in build mode (Opennote-style)
+      const full = scene.say || '';
+      const capChars = building ? Math.floor(Math.min(1, revealT / capDur) * sayLen) : sayLen;
+      let say = full.slice(0, capChars);
+      if (building && capChars < sayLen && Math.floor(t * 2) % 2) say += '▍';   // typing cursor
       c.fillStyle = WHITE; c.font = `500 ${Math.round(H * 0.04)}px ${SANS}`;
       let y = H * 0.24;
-      wrap(scene.say || '', c.font, RW).forEach((ln) => { c.fillText(ln, L, y); y += H * 0.056; });
-      // evidence box
-      const boxY = Math.min(y + H * 0.02, H * 0.42);
-      const d = scene.draw;
-      if (d) {
+      wrap(say, c.font, RW).forEach((ln) => { c.fillText(ln, L, y); y += H * 0.056; });
+      // evidence box — rows drop in one by one after the caption finishes
+      const boxY = Math.min((building ? H * 0.24 + wrap(full, c.font, RW).length * H * 0.056 : y) + H * 0.02, H * 0.42);
+      const rowsShown = building ? Math.max(0, Math.floor((revealT - capDur) / ROW_DUR) + 1) : 1e9;
+      const d = scene.draw ? (building ? revealedDraw(scene.draw, rowsShown) : scene.draw) : null;
+      if (d && (!building || capChars >= sayLen)) {
         c.fillStyle = AMBER; c.font = `800 ${Math.round(H * 0.026)}px ${MONO}`;
         c.fillText((d.title || d.type || '').toUpperCase(), L, boxY);
         const inner = boxY + H * 0.04;
@@ -182,6 +207,7 @@ export function createReporter(W = 1280, opts = {}) {
     texture: tex, setTitle, setSource, idle, showScene,
     update(dt) {
       t += dt;
+      if (building) { revealT += dt; if (revealT < buildDur + 0.4) dirty = true; }   // animate the build
       const f = Math.floor(t * 3);
       if (dirty || f !== lastFrame) { lastFrame = f; draw(); dirty = false; tex.needsUpdate = true; }
     },
