@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pit Wall — Transaction Report</title>
+<script type="importmap">
+  { "imports": { "livekit-client": "https://esm.sh/livekit-client@2" } }
+</script>
+<style>
+  :root{ --volt:#c6ff2e; --ink:#05080c; --panel:#0d1319; --line:#1d2730; --muted:#7d8b97; --txt:#e8eef2;
+         --blue:#7fd4ff; --amber:#ffcf33; --red:#ff5564; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; min-height:100%; background:
+      radial-gradient(1200px 640px at 50% -8%, #11202a 0%, var(--ink) 60%); color:var(--txt);
+      font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial; }
+  #app{ max-width:940px; margin:0 auto; padding:30px 24px 80px; }
+  header{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px;
+          border-bottom:1px solid var(--line); padding-bottom:18px; }
+  .brand{ display:flex; align-items:center; gap:13px; }
+  .bars{ display:inline-grid; grid-auto-flow:column; gap:3px; align-items:end; height:28px; }
+  .bars i{ width:5px; background:var(--volt); display:block; border-radius:1px; }
+  .eyebrow{ color:var(--volt); font:800 11px/1 ui-monospace,Menlo,monospace; letter-spacing:.2em; text-transform:uppercase; }
+  h1{ font-size:23px; margin:4px 0 2px; letter-spacing:.2px; }
+  .sub{ color:var(--muted); font-size:13px; }
+  #status{ font:12px/1 ui-monospace,Menlo,monospace; color:var(--ink); background:var(--volt);
+           padding:7px 11px; border-radius:999px; white-space:nowrap; opacity:0; transition:opacity .3s; }
+  #status.on{ opacity:1; }
+  .actions{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:22px 0 8px; }
+  .btn{ cursor:pointer; border:0; border-radius:999px; font-weight:800; letter-spacing:.3px;
+        background:var(--volt); color:var(--ink); padding:13px 24px; font-size:15px;
+        box-shadow:0 8px 28px rgba(198,255,46,.22); transition:transform .12s, filter .12s; }
+  .btn:hover{ filter:brightness(1.06); transform:translateY(-1px); }
+  .btn:disabled{ opacity:.5; cursor:not-allowed; transform:none; box-shadow:none; }
+  .btn.ghost{ background:transparent; color:var(--volt); border:1px solid rgba(198,255,46,.4); box-shadow:none; }
+  .vhint{ color:var(--muted); font-size:12px; }
+  section{ margin-top:34px; }
+  .shead{ display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .shead .k{ color:var(--volt); font:800 11px/1 ui-monospace,Menlo,monospace; letter-spacing:.18em; text-transform:uppercase; }
+  .shead .line{ flex:1; height:1px; background:var(--line); }
+  /* agent thinking — numbered steps */
+  .step{ display:flex; gap:14px; padding:13px 0; border-top:1px solid var(--line); }
+  .step:first-child{ border-top:0; }
+  .step .n{ flex:none; width:26px; height:26px; border-radius:50%; background:rgba(198,255,46,.14);
+            color:var(--volt); font:800 13px/26px ui-monospace,Menlo,monospace; text-align:center; }
+  .step .say{ color:#dfe9ef; font-size:15.5px; }
+  .step.cur .n{ background:var(--volt); color:var(--ink); }
+  .step.cur .say{ color:#fff; }
+  /* what it touched — canvases */
+  .touch{ border:1px solid var(--line); border-radius:14px; background:var(--panel); overflow:hidden; margin-bottom:14px; }
+  .touch .th{ padding:11px 16px; border-bottom:1px solid var(--line); color:var(--blue);
+              font:800 11px/1 ui-monospace,Menlo,monospace; letter-spacing:.12em; text-transform:uppercase;
+              display:flex; align-items:center; gap:8px; }
+  .touch .tt{ color:var(--muted); font-size:9px; border:1px solid var(--line); padding:2px 7px; border-radius:999px; }
+  table{ width:100%; border-collapse:collapse; }
+  th,td{ text-align:left; padding:10px 16px; border-top:1px solid var(--line); font-size:14px; }
+  th{ color:var(--muted); font:700 11px/1 ui-monospace,Menlo,monospace; letter-spacing:.08em; text-transform:uppercase; }
+  td.v{ font:600 14px/1 ui-monospace,Menlo,monospace; color:var(--volt); text-align:right; white-space:nowrap; }
+  tr.hi td{ background:rgba(198,255,46,.06); }
+  .chk{ display:flex; align-items:center; gap:10px; padding:10px 16px; border-top:1px solid var(--line); font-size:14px; }
+  .chk:first-child{ border-top:0; }
+  .chk .mk{ width:20px; height:20px; border-radius:5px; display:grid; place-items:center; font-weight:800; font-size:12px; }
+  .chk .ok{ background:rgba(198,255,46,.16); color:var(--volt); }
+  .chk .no{ background:rgba(255,85,100,.16); color:var(--red); }
+  .flow{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:14px 16px; }
+  .flow .box{ background:rgba(127,212,255,.1); border:1px solid rgba(127,212,255,.3); color:var(--blue);
+              padding:8px 13px; border-radius:8px; font:600 13px/1 ui-monospace,Menlo,monospace; }
+  .flow .arr{ color:var(--muted); }
+  /* human input */
+  .hrow{ display:flex; gap:13px; padding:13px 16px; border:1px solid var(--line); border-left:3px solid var(--volt);
+         border-radius:10px; background:var(--panel); margin-bottom:10px; }
+  .hrow.deny{ border-left-color:var(--red); }
+  .hrow.esc{ border-left-color:var(--amber); }
+  .hrow .who{ flex:none; }
+  .hrow .avatar{ width:34px; height:34px; border-radius:50%; background:rgba(198,255,46,.14); color:var(--volt);
+                 display:grid; place-items:center; font-weight:800; font-size:14px; }
+  .hrow .meta{ flex:1; }
+  .hrow .act{ font-weight:700; color:#fff; }
+  .hrow .act .tag{ font:800 10px/1 ui-monospace,Menlo,monospace; letter-spacing:.1em; text-transform:uppercase;
+                   padding:3px 7px; border-radius:5px; margin-left:8px; vertical-align:1px; }
+  .hrow .tag.ok{ background:var(--volt); color:var(--ink); }
+  .hrow .tag.deny{ background:var(--red); color:#fff; }
+  .hrow .tag.esc{ background:var(--amber); color:var(--ink); }
+  .hrow .why{ color:var(--muted); font-size:13.5px; margin-top:3px; }
+  .hrow .at{ color:var(--muted); font:12px/1 ui-monospace,Menlo,monospace; margin-top:4px; }
+  .chain{ margin-top:14px; }
+  .chain summary{ cursor:pointer; color:var(--blue); font-size:13px; }
+  .chain table{ margin-top:10px; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .dim{ color:var(--muted); }
+  .empty{ color:var(--muted); font-style:italic; padding:8px 0; }
+  /* ask-the-agent */
+  #ask-sec{ margin-top:30px; }
+  .askrow{ display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:5px 5px 5px 14px; }
+  .askrow .askp{ color:var(--volt); font-weight:800; }
+  #ask-input{ flex:1; background:transparent; border:0; color:var(--txt); font:15px ui-sans-serif,system-ui; outline:none; padding:11px 2px; }
+  #ask-go{ padding:10px 20px; font-size:14px; }
+  #ask-go:disabled{ opacity:.5; cursor:not-allowed; }
+  .askhint{ color:var(--muted); font-size:12px; margin-top:8px; }
+  #ask-thread{ display:flex; flex-direction:column; gap:10px; margin-bottom:12px; }
+  .qa{ display:flex; gap:11px; }
+  .qa .av{ flex:none; width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:12px; }
+  .qa.you .av{ background:rgba(255,255,255,.1); color:#dfe9ef; }
+  .qa.bot .av{ background:rgba(198,255,46,.16); color:var(--volt); }
+  .qa .bub{ flex:1; font-size:15px; line-height:1.55; padding:11px 15px; border:1px solid var(--line); border-radius:10px; background:var(--panel); }
+  .qa.you .bub{ color:#dfe9ef; }
+  .qa.bot .bub{ border-left:3px solid var(--volt); }
+  .qa.bot.thinking .bub{ color:var(--muted); font-style:italic; }
+</style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="brand">
+        <span class="bars"><i style="height:11px"></i><i style="height:24px"></i><i style="height:17px"></i><i style="height:28px"></i></span>
+        <div>
+          <div class="eyebrow">Pit Wall · Transaction Report</div>
+          <h1 id="title">loading…</h1>
+          <div class="sub" id="sub"></div>
+        </div>
+      </div>
+      <span id="status">idle</span>
+    </header>
+
+    <div class="actions">
+      <button class="btn" id="play">▶ Play narrated report</button>
+      <button class="btn ghost" id="video">🎬 Make it a video</button>
+      <span class="vhint" id="vhint">renders a narrated .mp4 over LiveKit + Cartesia (~40s first time)</span>
+    </div>
+
+    <section id="ask-sec">
+      <div class="shead"><span class="k">💬 Ask the agent about this event</span><span class="line"></span></div>
+      <div id="ask-thread"></div>
+      <div class="askrow">
+        <span class="askp">?</span>
+        <input id="ask-input" placeholder="e.g. why didn't you chase the shortfall? what did the bank check cost?" autocomplete="off" />
+        <button class="btn" id="ask-go">Ask</button>
+      </div>
+      <div class="askhint">it answers only from this transaction's record — reasoning, the data it touched, and the audit trail.</div>
+    </section>
+
+    <section id="think-sec">
+      <div class="shead"><span class="k">① The agent's thinking</span><span class="line"></span></div>
+      <div id="think"></div>
+    </section>
+    <section id="touched-sec">
+      <div class="shead"><span class="k">② What the agent touched</span><span class="line"></span></div>
+      <div id="touched"></div>
+    </section>
+    <section id="human-sec">
+      <div class="shead"><span class="k">③ The human input</span><span class="line"></span></div>
+      <div id="human"></div>
+      <details class="chain" id="chain"><summary>show the full append-only chain</summary><div id="chain-body"></div></details>
+    </section>
+  </div>
+
+<script type="module">
+  const $ = (s) => document.querySelector(s);
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+  const WI = new URLSearchParams(location.search).get('wi') || '';
+  const ROOM = 'pitwall-report';
+  const HUMAN_RE = /^(controller|accountant|cfo|director|human)/i;
+  const AGENT_RE = /^(ai_agent|gateway|retrieval|system|policy)/i;
+
+  function status(t){ const el = $('#status'); el.textContent = t; el.classList.add('on'); }
+
+  let plan = { scenes: [] }, trail = [];
+
+  async function load(){
+    if (!WI){ $('#title').textContent = 'no transaction selected'; return; }
+    let a = {}, b = [];
+    try { [a, b] = await Promise.all([
+      fetch('/api/explain/' + encodeURIComponent(WI)).then((r) => r.json()),
+      fetch('/api/audit/' + encodeURIComponent(WI)).then((r) => r.json()),
+    ]); } catch (e){ $('#title').textContent = 'backend offline — run `make fc`'; return; }
+    plan = a || { scenes: [] };
+    trail = Array.isArray(b) ? b : [];
+    $('#title').textContent = plan.title || WI;
+    $('#sub').textContent = WI + (plan.as_of ? '  ·  as of ' + plan.as_of : '') + '  ·  narrated by Pit Wall · LiveKit + Cartesia';
+    document.title = 'Pit Wall — ' + (plan.title || WI);
+    renderThink(); renderTouched(); renderHuman();
+  }
+
+  function renderThink(){
+    const box = $('#think'); box.innerHTML = '';
+    const scenes = plan.scenes || [];
+    if (!scenes.length){ box.innerHTML = '<div class="empty">no grounded reasoning recorded for this transaction.</div>'; return; }
+    scenes.forEach((s, i) => {
+      const d = document.createElement('div');
+      d.className = 'step'; d.dataset.i = i;
+      d.innerHTML = '<div class="n">' + (i + 1) + '</div><div class="say">' + esc(s.say || '') + '</div>';
+      box.appendChild(d);
+    });
+  }
+
+  function drawHtml(draw){
+    if (!draw || !draw.type) return '';
+    const t = draw.type;
+    let body = '';
+    if (t === 'table'){
+      const cols = draw.columns || [];
+      body = '<table><thead><tr>' + cols.map((c, i) => '<th' + (i ? ' class="v"' : '') + '>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
+        + (draw.rows || []).map((r, ri) => '<tr' + (draw.highlight_row === ri ? ' class="hi"' : '') + '>'
+            + r.map((c, i) => '<td' + (i ? ' class="v"' : '') + '>' + esc(c) + '</td>').join('') + '</tr>').join('')
+        + '</tbody></table>';
+    } else if (t === 'calc'){
+      body = '<table><tbody>' + (draw.lines || []).map((ln) => {
+        const s = String(ln); const i = s.lastIndexOf('  ');
+        const lbl = i > 0 ? s.slice(0, i) : s, val = i > 0 ? s.slice(i) : '';
+        return '<tr><td>' + esc(lbl.trim()) + '</td><td class="v">' + esc(val.trim()) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+    } else if (t === 'checks'){
+      body = (draw.items || []).map((it) => '<div class="chk"><span class="mk ' + (it.ok ? 'ok' : 'no') + '">' + (it.ok ? '✓' : '✗') + '</span><span>' + esc(it.label) + '</span></div>').join('');
+    } else if (t === 'flow'){
+      body = '<div class="flow">' + (draw.boxes || []).map((b, i) => (i ? '<span class="arr">→</span>' : '') + '<span class="box">' + esc(b) + '</span>').join('') + '</div>';
+    } else if (t === 'entry'){
+      body = '<table><thead><tr><th>account</th><th class="v">debit</th><th class="v">credit</th></tr></thead><tbody>'
+        + (draw.lines || []).map((l) => '<tr><td>' + esc(l.account) + '</td><td class="v">' + esc(l.debit || '') + '</td><td class="v">' + esc(l.credit || '') + '</td></tr>').join('')
+        + '</tbody></table>';
+    }
+    if (!body) return '';
+    return '<div class="touch"><div class="th">' + esc(draw.title || t) + '<span class="tt">' + esc(t) + '</span></div>' + body + '</div>';
+  }
+
+  function renderTouched(){
+    const box = $('#touched'); box.innerHTML = '';
+    const html = (plan.scenes || []).map((s) => drawHtml(s.draw)).filter(Boolean).join('');
+    box.innerHTML = html || '<div class="empty">no evidence canvases for this transaction.</div>';
+  }
+
+  function renderHuman(){
+    const box = $('#human'); box.innerHTML = '';
+    const humans = trail.filter((r) => r.actor && HUMAN_RE.test(r.actor));
+    if (!humans.length){ box.innerHTML = '<div class="empty">no human input on this transaction — the agent handled it autonomously under policy.</div>'; }
+    humans.forEach((r) => {
+      const deny = r.allowed === false, esc_ = /escalat|hold|ask|refer/i.test((r.action || '') + ' ' + (r.reason || ''));
+      const cls = deny ? 'deny' : (esc_ ? 'esc' : '');
+      const tag = deny ? '<span class="tag deny">denied</span>' : (r.action === 'reject' ? '<span class="tag deny">rejected</span>'
+        : (esc_ ? '<span class="tag esc">escalated</span>' : '<span class="tag ok">' + esc(r.action || 'approved') + '</span>'));
+      const initials = String(r.actor).replace(/^[^:]*:/, '').slice(0, 2).toUpperCase();
+      const d = document.createElement('div');
+      d.className = 'hrow ' + cls;
+      d.innerHTML = '<div class="who"><div class="avatar">' + esc(initials) + '</div></div><div class="meta">'
+        + '<div class="act">' + esc(r.actor) + tag + '</div>'
+        + (r.reason ? '<div class="why">“' + esc(r.reason) + '”</div>' : '')
+        + '<div class="at">' + esc(r.at || '') + (r.state ? '  ·  ' + esc(r.state) : '') + '</div></div>';
+      box.appendChild(d);
+    });
+    // full chain
+    const cb = $('#chain-body');
+    cb.innerHTML = '<table><thead><tr><th>time</th><th>actor</th><th>action</th><th>why</th></tr></thead><tbody>'
+      + trail.map((r) => '<tr><td class="dim">' + esc(r.at || '') + '</td><td>' + esc(r.actor || '')
+          + '</td><td>' + esc((r.action || '') + (r.allowed === false ? ' ✗' : '')) + '</td><td class="dim">' + esc(r.reason || '') + '</td></tr>').join('')
+      + '</tbody></table>';
+    if (!trail.length) $('#chain').style.display = 'none';
+  }
+
+  // ---- narration: LiveKit live → Cartesia HTTP → browser speech ----------------
+  let running = false, room = null, audioEl = null, fallbackAudio = null, cartHttp = true;
+  const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=';
+
+  function highlight(i){
+    document.querySelectorAll('.step').forEach((el) => el.classList.toggle('cur', +el.dataset.i === i));
+    const cur = document.querySelector('.step.cur'); if (cur) cur.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  function playBlob(blob){
+    return new Promise((res) => { try {
+      if (!fallbackAudio) fallbackAudio = new Audio();
+      const u = URL.createObjectURL(blob); fallbackAudio.src = u;
+      const done = () => { try { URL.revokeObjectURL(u); } catch(e){} res(); };
+      fallbackAudio.onended = done; fallbackAudio.onerror = done; fallbackAudio.play().catch(done);
+    } catch(e){ res(); } });
+  }
+  async function speak(text){
+    const t = String(text || '').trim(); if (!t) return;
+    if (cartHttp){
+      try { const r = await fetch('/api/voice?text=' + encodeURIComponent(t));
+        if (r.status === 404){ cartHttp = false; }
+        else if (r.ok){ await playBlob(await r.blob()); return; } } catch(e){ /* fall through */ }
+    }
+    try { await new Promise((res) => { const u = new SpeechSynthesisUtterance(t); u.onend = res; u.onerror = res; speechSynthesis.speak(u); }); } catch(e){}
+  }
+  async function viaLiveKit(timeoutMs){
+    const tok = await fetch('/api/livekit/token?room=' + ROOM + '&identity=txreport').then((r) => r.json());
+    if (!tok || tok.error || !tok.token) throw new Error('no-token');
+    const LK = await import('livekit-client');
+    room = new LK.Room();
+    let liveAudio = false;
+    room.on(LK.RoomEvent.TrackSubscribed, (track) => { if (track.kind !== 'audio') return;
+      try { audioEl = track.attach(); audioEl.autoplay = true; document.body.appendChild(audioEl);
+        audioEl.play && audioEl.play().catch(() => {}); liveAudio = true; status('live · livekit · cartesia'); } catch(e){} });
+    await Promise.race([room.connect(tok.url, tok.token), wait(timeoutMs).then(() => { throw new Error('timeout'); })]);
+    const dec = new TextDecoder(), enc = new TextEncoder();
+    let got = false, busy = Promise.resolve();
+    room.on(LK.RoomEvent.DataReceived, (payload, p, k, topic) => {
+      let m; try { m = JSON.parse(dec.decode(payload)); } catch(e){ return; }
+      if (topic === 'lk.explain-scene' && m.scene){ got = true;
+        busy = busy.then(async () => { if (!running) return; highlight(m.index || 0);
+          if (liveAudio) await wait(400); else await speak(m.scene.say || ''); if ((m.index || 0) + 1 >= (m.total || 1)) done(); }); }
+    });
+    await room.localParticipant.publishData(enc.encode(JSON.stringify({ requestId: 'tx-1', subject: WI })),
+      { reliable: true, topic: 'lk.explain-request' });
+    await wait(6000); if (!got) throw new Error('no-agent');
+  }
+  async function viaLocal(){
+    status('cartesia · http'); const scenes = plan.scenes || [];
+    for (let i = 0; i < scenes.length && running; i++){ highlight(i); await speak(scenes[i].say || ''); if (running) await wait(350); }
+    done();
+  }
+  function done(){ if (!running) return; running = false; status('report complete');
+    document.querySelectorAll('.step').forEach((el) => el.classList.remove('cur'));
+    $('#play').textContent = '↻ Replay narrated report'; $('#play').disabled = false; }
+  async function play(){
+    if (running) return; running = true; $('#play').disabled = true; $('#play').textContent = '■ narrating…';
+    try { if (!fallbackAudio){ fallbackAudio = new Audio(); fallbackAudio.src = SILENT; fallbackAudio.play().catch(() => {}); } } catch(e){}
+    status('connecting…');
+    try { await viaLiveKit(4000); }
+    catch(e){ if (room){ try { room.disconnect(); } catch(_){} room = null; } if (running) await viaLocal(); }
+  }
+
+  $('#play').addEventListener('click', play);
+
+  // ---- make it a video (MP4) ---------------------------------------------------
+  $('#video').addEventListener('click', async () => {
+    const b = $('#video'), h = $('#vhint'); b.disabled = true; const label = b.textContent; b.textContent = '⏳ rendering…';
+    let dots = 0; const tick = setInterval(() => { h.textContent = 'rendering the narrated MP4' + '.'.repeat((++dots) % 4) + '  (~40s, first time)'; }, 500);
+    try {
+      const res = await fetch('/api/report-video?wi=' + encodeURIComponent(WI));
+      if (res.status === 404){ h.textContent = 'voice not configured on the server'; throw new Error('404'); }
+      if (!res.ok) throw new Error('render failed');
+      const blob = await res.blob(); const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'pitwall-' + WI + '.mp4';
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      b.textContent = '✓ downloaded'; h.textContent = 'saved pitwall-' + WI + '.mp4';
+    } catch(e){ b.textContent = '⚠ failed'; if (!h.textContent.includes('not configured')) h.textContent = 'render failed — is the server running?'; }
+    finally { clearInterval(tick); setTimeout(() => { b.textContent = label; b.disabled = false; }, 3500); }
+  });
+
+  // ---- ask the agent about this event (grounded Q&A over the record) -----------
+  const askThread = $('#ask-thread'), askInput = $('#ask-input'), askGo = $('#ask-go');
+  function bubble(cls, text){
+    const d = document.createElement('div'); d.className = 'qa ' + cls;
+    d.innerHTML = '<div class="av">' + (cls.indexOf('you') >= 0 ? 'Y' : 'AI') + '</div><div class="bub"></div>';
+    d.querySelector('.bub').textContent = text; askThread.appendChild(d);
+    d.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return d;
+  }
+  async function ask(){
+    const q = (askInput.value || '').trim(); if (!q || !WI) return;
+    askInput.value = ''; askGo.disabled = true;
+    bubble('you', q);
+    const t = bubble('bot thinking', 'thinking…');
+    try {
+      const r = await fetch('/api/ask?' + new URLSearchParams({ wi: WI, q: q }).toString(), { method: 'POST' }).then((x) => x.json());
+      t.className = 'qa bot'; t.querySelector('.bub').textContent = (r && r.answer) || '(no answer)';
+    } catch (e) { t.className = 'qa bot'; t.querySelector('.bub').textContent = '(couldn’t reach the backend)'; }
+    askGo.disabled = false; askInput.focus();
+  }
+  askGo.addEventListener('click', ask);
+  askInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') ask(); });
+
+  load();
+</script>
+</body>
+</html>

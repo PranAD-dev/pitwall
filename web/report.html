@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Harbourside FC — Financial Report</title>
+<script type="importmap">
+  { "imports": { "livekit-client": "https://esm.sh/livekit-client@2" } }
+</script>
+<style>
+  :root{ --volt:#c6ff2e; --ink:#05080c; --panel:#0d1319; --line:#1d2730; --muted:#7d8b97; --txt:#e8eef2; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; background:
+      radial-gradient(1200px 600px at 50% -10%, #11202a 0%, var(--ink) 60%); color:var(--txt);
+      font:16px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial; }
+  #app{ max-width:960px; margin:0 auto; min-height:100%; display:flex; flex-direction:column;
+        padding:28px 22px 0; }
+  header{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px;
+          border-bottom:1px solid var(--line); padding-bottom:16px; }
+  .brand{ display:flex; align-items:center; gap:12px; }
+  .bars{ display:inline-grid; grid-auto-flow:column; gap:3px; align-items:end; height:26px; }
+  .bars i{ width:4px; background:var(--volt); display:block; border-radius:1px; }
+  h1{ font-size:20px; margin:0; letter-spacing:.2px; }
+  #subtitle{ color:var(--muted); font-size:13px; margin-top:2px; }
+  #status{ font:12px/1 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--ink);
+           background:var(--volt); padding:6px 10px; border-radius:999px; white-space:nowrap;
+           opacity:.0; transition:opacity .3s; }
+  #status.on{ opacity:1; }
+  main{ flex:1; display:flex; flex-direction:column; justify-content:center; padding:30px 0; }
+  /* intro */
+  #intro{ text-align:center; padding:40px 0 60px; }
+  #intro h2{ font-size:34px; margin:0 0 10px; font-weight:700; }
+  #intro p{ color:var(--muted); max-width:560px; margin:0 auto 30px; }
+  .btn{ cursor:pointer; border:0; border-radius:999px; font-weight:700; letter-spacing:.3px;
+        background:var(--volt); color:var(--ink); padding:16px 30px; font-size:17px;
+        box-shadow:0 8px 30px rgba(198,255,46,.25); transition:transform .12s, filter .12s; }
+  .btn:hover{ filter:brightness(1.06); transform:translateY(-1px); }
+  .btn.ghost{ background:transparent; color:var(--volt); border:1px solid var(--line);
+              box-shadow:none; font-size:14px; padding:11px 20px; }
+  .hint{ color:var(--muted); font-size:12px; margin-top:16px; }
+  /* slide */
+  #slide{ display:none; opacity:0; transform:translateY(8px); transition:opacity .4s, transform .4s; }
+  #slide.on{ display:block; opacity:1; transform:none; }
+  #heading{ font-size:26px; font-weight:700; margin:0 0 20px; color:#fff; }
+  .ledger{ border:1px solid var(--line); border-radius:14px; background:var(--panel); overflow:hidden; }
+  .row{ display:flex; align-items:center; justify-content:space-between; gap:20px;
+        padding:15px 22px; border-top:1px solid var(--line);
+        opacity:0; transform:translateY(6px); transition:opacity .4s, transform .4s; }
+  .row:first-child{ border-top:0; }
+  .row.in{ opacity:1; transform:none; }
+  .row .lbl{ color:var(--txt); }
+  .row .val{ font:600 18px/1 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--volt); white-space:nowrap; }
+  .row.total{ background:#0a1f14; }
+  .row.total .lbl{ font-weight:700; color:#fff; }
+  .row.total .val{ color:var(--volt); font-size:20px; }
+  #note{ color:var(--muted); font-size:14px; margin:18px 2px 0; display:none; font-style:italic;
+         border-left:2px solid var(--volt); padding-left:12px; }
+  /* caption + progress */
+  footer{ border-top:1px solid var(--line); padding:18px 0 22px; margin-top:22px;
+          display:flex; align-items:center; gap:16px; min-height:74px; }
+  #progress{ font:12px/1 ui-monospace,Menlo,monospace; color:var(--muted); white-space:nowrap; }
+  #caption{ flex:1; font-size:18px; color:#dfe9ef; min-height:1.4em; }
+  #caption.live::before{ content:"🔊 "; }
+  #replay{ display:none; }
+</style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="brand">
+        <span class="bars"><i style="height:10px"></i><i style="height:22px"></i><i style="height:16px"></i><i style="height:26px"></i></span>
+        <div>
+          <h1 id="title">Harbourside FC — Financial Report</h1>
+          <div id="subtitle">narrated by Pit Wall · LiveKit + Cartesia</div>
+        </div>
+      </div>
+      <span id="status">idle</span>
+    </header>
+
+    <main>
+      <section id="intro">
+        <h2>The financial report, read aloud.</h2>
+        <p>Pit Wall walks through Harbourside FC's accounts — revenue, player trading,
+           costs and the bottom line — narrated live by a Cartesia voice streamed over
+           LiveKit, with each figure building on screen as it's spoken.</p>
+        <button class="btn" id="play">▶ Play the financial report</button>
+        <div class="hint">audio starts on click · ~90 seconds</div>
+        <div style="margin-top:24px">
+          <button class="btn ghost" id="download">⬇ Download as MP4</button>
+          <div class="hint" id="dlhint">renders the narrated report to a shareable .mp4 (~40s first time)</div>
+        </div>
+      </section>
+
+      <section id="slide">
+        <h2 id="heading"></h2>
+        <div class="ledger" id="lines"></div>
+        <div id="note"></div>
+      </section>
+    </main>
+
+    <footer>
+      <span id="progress"></span>
+      <span id="caption"></span>
+      <button class="btn ghost" id="replay">↻ Replay</button>
+    </footer>
+  </div>
+
+<script type="module">
+  const $ = (s) => document.querySelector(s);
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const ROOM = 'pitwall-report';
+  const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=';
+
+  let running = false, room = null, liveAudioOn = false, audioEl = null;
+  let fallbackAudio = null, cartHttp = true;
+
+  function status(t){ const el = $('#status'); el.textContent = t; el.classList.add('on'); }
+  function caption(say, live){ const c = $('#caption'); c.textContent = say || ''; c.classList.toggle('live', !!(say && live)); }
+
+  function showScene(scene, i, total){
+    $('#intro').style.display = 'none';
+    $('#slide').classList.add('on');
+    $('#heading').textContent = scene.heading || scene.title || '';
+    const box = $('#lines'); box.innerHTML = '';
+    (scene.lines || []).forEach(([label, val], k) => {
+      const row = document.createElement('div');
+      const isTotal = /total|operating (profit|result)|net cash/i.test(label || '');
+      row.className = 'row' + (isTotal ? ' total' : '');
+      row.innerHTML = '<span class="lbl"></span><span class="val"></span>';
+      row.querySelector('.lbl').textContent = label || '';
+      row.querySelector('.val').textContent = val || '';
+      box.appendChild(row);
+      setTimeout(() => row.classList.add('in'), 140 * k + 80);
+    });
+    const note = $('#note');
+    if (scene.note){ note.textContent = scene.note; note.style.display = 'block'; }
+    else note.style.display = 'none';
+    $('#progress').textContent = `${(i | 0) + 1} / ${total || '?'}`;
+  }
+
+  // Cartesia over HTTP — the fallback when the LiveKit worker isn't voicing the room.
+  function playBlob(blob){
+    return new Promise((res) => {
+      try {
+        if (!fallbackAudio) fallbackAudio = new Audio();
+        const u = URL.createObjectURL(blob);
+        fallbackAudio.src = u;
+        const done = () => { try { URL.revokeObjectURL(u); } catch(e){} res(); };
+        fallbackAudio.onended = done; fallbackAudio.onerror = done;
+        fallbackAudio.play().catch(done);
+      } catch(e){ res(); }
+    });
+  }
+  async function speak(text){
+    const t = String(text || '').trim();
+    if (!t || !cartHttp) return;
+    try {
+      const r = await fetch('/api/voice?text=' + encodeURIComponent(t));
+      if (r.status === 404) { cartHttp = false; return; }
+      if (r.ok) await playBlob(await r.blob());
+    } catch(e){ /* ignore — silent slide */ }
+  }
+
+  async function viaLiveKit(timeoutMs){
+    const tok = await fetch(`/api/livekit/token?room=${ROOM}&identity=report-viewer`).then((r) => r.json());
+    if (!tok || tok.error || !tok.token) throw new Error('no-token');
+    const LK = await import('livekit-client');
+    room = new LK.Room();
+    room.on(LK.RoomEvent.TrackSubscribed, (track) => {
+      if (track.kind !== 'audio') return;
+      try {
+        audioEl = track.attach(); audioEl.autoplay = true;
+        document.body.appendChild(audioEl);
+        if (audioEl.play) audioEl.play().catch(() => {});
+        liveAudioOn = true; status('live · livekit · cartesia');
+      } catch(e){}
+    });
+    await Promise.race([room.connect(tok.url, tok.token),
+      wait(timeoutMs).then(() => { throw new Error('connect-timeout'); })]);
+    status('connected · asking the reporter…');
+    const dec = new TextDecoder(), enc = new TextEncoder();
+    let got = false, busy = Promise.resolve(), total = 0;
+    room.on(LK.RoomEvent.DataReceived, (payload, participant, kind, topic) => {
+      let m; try { m = JSON.parse(dec.decode(payload)); } catch(e){ return; }
+      if (topic === 'lk.explain-plan' && m.plan){
+        got = true; total = (m.plan.scenes || []).length;
+        if (m.plan.title) $('#title').textContent = m.plan.title;
+        if (m.plan.subtitle) $('#subtitle').textContent = m.plan.subtitle;
+      } else if (topic === 'lk.explain-scene' && m.scene){
+        got = true;
+        busy = busy.then(async () => {
+          if (!running) return;
+          const idx = m.index || 0, tot = m.total || total;
+          showScene(m.scene, idx, tot);
+          caption(m.scene.say || '', liveAudioOn);
+          if (liveAudioOn) { await wait(500); }       // worker paces scenes to its audio
+          else { const w = (m.scene.say || '').split(/\s+/).length;
+                 await Promise.all([speak(m.scene.say), wait(Math.max(4000, w * 360))]); }
+          if (idx + 1 >= tot) done();
+        });
+      } else if (topic === 'lk.explain-error'){ status('reporter error — ' + (m.error || '')); }
+    });
+    await room.localParticipant.publishData(
+      enc.encode(JSON.stringify({ requestId: 'rep-1', subject: 'financial-report' })),
+      { reliable: true, topic: 'lk.explain-request' });
+    await wait(6000);
+    if (!got) throw new Error('no-agent');            // worker silent → HTTP takes over
+  }
+
+  async function viaHttp(){
+    status('cartesia · http');
+    const plan = await fetch('/api/sample-report').then((r) => r.json());
+    if (plan.title) $('#title').textContent = plan.title;
+    if (plan.subtitle) $('#subtitle').textContent = plan.subtitle;
+    const scenes = plan.scenes || [];
+    for (let i = 0; i < scenes.length && running; i++){
+      showScene(scenes[i], i, scenes.length);
+      caption(scenes[i].say || '', cartHttp);
+      const w = (scenes[i].say || '').split(/\s+/).length;
+      await Promise.all([speak(scenes[i].say), wait(Math.max(4000, w * 360))]);
+      if (running) await wait(500);
+    }
+    done();
+  }
+
+  function done(){
+    if (!running) return;
+    running = false;
+    status('report complete');
+    $('#replay').style.display = 'inline-block';
+  }
+
+  function stop(){
+    running = false; liveAudioOn = false;
+    try { if (audioEl){ audioEl.pause(); audioEl.remove(); audioEl = null; } } catch(e){}
+    try { if (fallbackAudio) fallbackAudio.pause(); } catch(e){}
+    if (room){ try { room.disconnect(); } catch(e){} room = null; }
+  }
+
+  async function start(){
+    if (running) return;
+    running = true;
+    $('#replay').style.display = 'none';
+    // unlock audio on this user gesture
+    try { if (!fallbackAudio) fallbackAudio = new Audio(); fallbackAudio.src = SILENT_WAV; fallbackAudio.play().catch(() => {}); } catch(e){}
+    status('connecting…');
+    try {
+      await viaLiveKit(4000);                          // narration continues async; done() fires on the last scene
+    } catch(e){
+      if (room){ try { await room.disconnect(); } catch(_){} room = null; liveAudioOn = false; }
+      if (running){ try { await viaHttp(); } catch(_){ status('backend offline — run `make fc`'); running = false; } }
+    }
+  }
+
+  $('#play').addEventListener('click', start);
+  $('#replay').addEventListener('click', () => { stop(); $('#slide').classList.remove('on'); start(); });
+
+  // ⬇ Download as MP4 — server renders the slides + Cartesia narration via ffmpeg
+  const dlBtn = $('#download'), dlHint = $('#dlhint');
+  dlBtn.addEventListener('click', async () => {
+    dlBtn.disabled = true;
+    const label = dlBtn.textContent;
+    dlBtn.textContent = '⏳ rendering…';
+    let dots = 0;
+    const tick = setInterval(() => { dlHint.textContent = 'rendering the narrated MP4' + '.'.repeat((++dots) % 4) + '  (~40s, first time)'; }, 500);
+    try {
+      const res = await fetch('/api/report-video');
+      if (res.status === 404) { dlHint.textContent = 'voice not configured on the server'; throw new Error('404'); }
+      if (!res.ok) throw new Error('render failed');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'harbourside-financial-report.mp4';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      dlBtn.textContent = '✓ downloaded';
+      dlHint.textContent = 'saved harbourside-financial-report.mp4';
+    } catch (e) {
+      dlBtn.textContent = '⚠ failed';
+      if (!dlHint.textContent.includes('not configured')) dlHint.textContent = 'render failed — is the server running?';
+    } finally {
+      clearInterval(tick);
+      setTimeout(() => { dlBtn.textContent = label; dlBtn.disabled = false; }, 3500);
+    }
+  });
+</script>
+</body>
+</html>

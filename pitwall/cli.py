@@ -14,6 +14,8 @@ voice_app = typer.Typer(no_args_is_help=True, help="LiveKit + Cartesia voice age
 sow_app = typer.Typer(no_args_is_help=True, help="System of Work — gateway, roles, state machine")
 agent_app = typer.Typer(no_args_is_help=True, help="the autonomous agent — onboard, run, process")
 retrieval_app = typer.Typer(no_args_is_help=True, help="Moss semantic retrieval (Tiger stays the truth)")
+books_app = typer.Typer(no_args_is_help=True, help="double-entry accounting — post, trial balance, P&L")
+payroll_app = typer.Typer(no_args_is_help=True, help="payroll run — authorized wage/bonus aggregate")
 app.add_typer(db_app, name="db")
 app.add_typer(world_app, name="world")
 app.add_typer(demo_app, name="demo")
@@ -23,6 +25,8 @@ app.add_typer(voice_app, name="voice")
 app.add_typer(sow_app, name="sow")
 app.add_typer(agent_app, name="agent")
 app.add_typer(retrieval_app, name="retrieval")
+app.add_typer(books_app, name="books")
+app.add_typer(payroll_app, name="payroll")
 
 
 @db_app.command("migrate")
@@ -115,6 +119,45 @@ def eval_run(
     )
     if not no_write:
         console.print(f"\n[dim]→ wrote {RESULTS_MD}[/]")
+
+
+@eval_app.command("retrieval")
+def eval_retrieval(
+    no_write: bool = typer.Option(False, "--no-write", help="don't write docs/MOSS_PERF.md"),
+) -> None:
+    """Score Moss retrieval: 30 NL questions → the right decision, top-1/top-3 with
+    and without the date filter, plus latency p50/p95. Writes docs/MOSS_PERF.md."""
+    from rich.console import Console
+
+    from .eval.retrieval import PERF_MD, run
+    from .retrieval import client as R
+
+    c = Console()
+    try:
+        res = run(write=not no_write)
+        if res.get("skipped"):
+            c.print(f"[yellow]{res['skipped']}[/] — set MOSS_PROJECT_ID / MOSS_PROJECT_KEY.")
+            return
+        m, lat = res["metrics"], res["latency"]["overall"]
+
+        def pct(x):
+            return f"{x * 100:.0f}%"
+
+        c.print(f"[bold]Moss retrieval eval[/] — {m['n']} questions over {m['docs_indexed']} "
+                f"canonical decisions")
+        c.print(f"  [bold]Top-1[/]  no-filter [cyan]{pct(m['top1_nofilter'])}[/]  ·  "
+                f"with date filter [green]{pct(m['top1_filter'])}[/]")
+        c.print(f"  [bold]Top-3[/]  no-filter [cyan]{pct(m['top3_nofilter'])}[/]  ·  "
+                f"with date filter [green]{pct(m['top3_filter'])}[/]")
+        c.print(f"  [bold]month-named ({m['timed_n']})[/] top-1  no-filter "
+                f"{pct(m['timed_top1_nofilter'])} → with filter [green]{pct(m['timed_top1_filter'])}[/]")
+        if lat and lat.get("n"):
+            c.print(f"  [bold]latency[/]  p50 [green]{float(lat['p50']):.0f}ms[/]  "
+                    f"p95 [green]{float(lat['p95']):.0f}ms[/]  (over {lat['n']} queries)")
+        if not no_write:
+            c.print(f"\n[dim]→ wrote {PERF_MD}[/]")
+    finally:
+        R.shutdown()
 
 
 @explain_app.command("seed-demo")
@@ -473,6 +516,13 @@ def agent_scenario(
                 c.print(f"  [green]◂ {len(rows)} row(s)[/] [dim]{d.get('columns')}[/]")
                 for r in rows[:4]:
                     c.print(f"    [grey62]{r}[/]")
+        elif k == "recall":
+            c.print("[bold cyan]▸ ai_agent[/] [blue]recall (Moss)[/]")
+            c.print(f"  [grey70]{step['text']}[/]")
+            for d in step.get("data", {}).get("decisions", [])[:3]:
+                c.print(f"    [blue]◂ {d['id']}[/] [dim]{d['score']:.2f}[/] {d['text'][:70]}")
+            for p in step.get("data", {}).get("precedents", [])[:2]:
+                c.print(f"    [blue]◂ {p['id']}[/] [dim]{p['score']:.2f}[/] {p['text'][:70]}")
         elif k == "propose":
             c.print("[bold cyan]▸ ai_agent[/] [magenta]propose[/]")
             data = step.get("data", {})
@@ -496,6 +546,45 @@ def agent_scenario(
         _t.sleep(0.02)
 
     run_scenario(text, emit)
+
+
+@agent_app.command("capability")
+def agent_capability() -> None:
+    """Test the agent's learning: does it discover the accounting policies from the
+    data? And contrast a newbie (no context) vs an onboarded agent on the same work."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from .agent.capability import capability
+
+    c = Console()
+    r = capability()
+    lrn = r["learning"]
+    c.rule(f"[bold]① CAN IT LEARN?[/]  agent mined the records ({lrn['mode']}) → "
+           f"found [green]{lrn['score']}[/] policy domains")
+    for p in lrn["learned"]:
+        c.print(f"  [green]✓[/] {p.get('name','?')}  [dim]({p.get('evidence','?')} precedents · "
+                f"covers {p.get('covers')})[/]")
+    if lrn["missing"]:
+        c.print(f"  [yellow]✗ could not infer from data:[/] {', '.join(lrn['missing'])}  "
+                f"[dim](no precedent — must be told by a human)[/]")
+
+    c.rule("[bold]② CONTEXT vs NO CONTEXT[/]  same work, three agents")
+    t = Table(header_style="bold")
+    t.add_column("agent"); t.add_column("auto", justify="right")
+    t.add_column("escalate → human", justify="right"); t.add_column("automation", justify="right")
+    for key, lbl in [("newbie", "newbie (no policies)"),
+                     ("no_context", "no-context (ignores policies)"),
+                     ("onboarded", "onboarded (learned context)")]:
+        m = r[key]
+        t.add_row(lbl, str(m["auto"]), str(m["escalate"]), f"{m['automation_rate']:.0f}%")
+    c.print(t)
+    on = r["onboarded"]
+    esc_kinds = [b["kind"] for b in on["by_kind"] if b["action"] == "escalate"]
+    c.print(f"\n[green]the learned context auto-handles {on['auto']} postings[/]; the onboarded "
+            f"agent still escalates only the judgment calls [yellow]{', '.join(esc_kinds) or '—'}[/] "
+            f"(e.g. the GFC6 agent-fee split). A newbie escalates all {r['newbie']['total']}.")
+    c.print("[dim]switch the live agent with PITWALL_AGENT_MODE=newbie|onboarded[/]")
 
 
 @agent_app.command("run")
@@ -619,6 +708,91 @@ def retrieval_query(
         R.shutdown()
 
 
+@retrieval_app.command("final-whistle")
+def retrieval_final_whistle(
+    result: str = typer.Argument("relegation",
+                                 help="relegation | europe_qualification | stays_up | finish_position"),
+    seed: bool = typer.Option(True, "--seed/--no-seed",
+                              help="seed + index the bespoke demo clauses first"),
+) -> None:
+    """Sporting results move money: union the structured cascade with a Moss sweep,
+    and escalate any clause Moss found that the structured data never classified."""
+    from rich.console import Console
+
+    from .retrieval import client as R
+    from .retrieval import final_whistle as FW
+    from .retrieval import sync
+
+    c = Console()
+    if not R.is_available():
+        c.print("[yellow]Moss not configured[/] — the structured cascade still runs Tiger-only.")
+    try:
+        if seed:
+            ids = FW.seed_demo_clauses()
+            for cid in ids:
+                sync.upsert("clauses", cid)
+            c.print(f"[dim]seeded + indexed {len(ids)} demo clause(s)[/]")
+        res = FW.affected_clauses(result)
+        c.rule(f"[bold]FINAL WHISTLE[/] · {result}")
+        c.print(f"[bold]structured cascade[/] ({len(res['structured'])}): "
+                + ", ".join(f"{s['id']}({s['kind']})" for s in res["structured"]) or "—")
+        c.print(f"[bold]Moss also surfaced[/] ({len(res['moss_only'])}): "
+                + (", ".join(f"{m['clause_id']}({m['kind']} {m['score']})" for m in res["moss_only"]) or "—"))
+        if res["needs_info"]:
+            c.print("\n[bold red]⚠ wording unclassified — escalated, NOT auto-applied:[/]")
+            raised = FW.escalate_unclassified(result)
+            for r in raised:
+                c.print(f"  [yellow]{r['work_item']}[/] → NEEDS_INFO  "
+                        f"[dim]{r['clause_id']} ({r['kind']}) — {r['counterparty'] or ''}[/]")
+                c.print(f"    [grey62]{r['snippet']}[/]")
+            c.print("\n[green]This is the catch:[/] semantic retrieval found a clause the "
+                    "structured cascade missed. See its trail with "
+                    f"[bold]pitwall sow audit {raised[0]['work_item']}[/]")
+        else:
+            c.print("\n[dim]no unclassified clauses surfaced for this result.[/]")
+    finally:
+        R.shutdown()
+
+
+@retrieval_app.command("reuse")
+def retrieval_reuse(
+    question: str = typer.Argument(..., help="a question you're about to ask a human"),
+    to_role: str = typer.Option(None, "--to-role", help="filter to who answers (e.g. human_cfo)"),
+    min_score: float = typer.Option(0.6, "--min-score"),
+) -> None:
+    """Check memory before asking a human: if the same question was already answered,
+    show the answer to reuse (Moss finds the match; Tiger supplies the real answer)."""
+    from rich.console import Console
+
+    from .db import connect
+    from .retrieval import client as R
+    from .retrieval import query as RQ
+
+    c = Console()
+    try:
+        if not R.is_available():
+            c.print("[yellow]Moss not configured[/]")
+            return
+        hit = RQ.reuse_prior_answer(question, to_role, min_score=min_score)
+        if not hit:
+            c.print(f"[dim]no prior answer ≥ {min_score} — would ask the human.[/]")
+            return
+        conn = connect("retrieval")
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT answer, answered_by, answered_at, work_item_id "
+                            "FROM work.question WHERE id=%s", (hit["id"],))
+                answer, by, at, wi = cur.fetchone()
+        finally:
+            conn.close()
+        c.print(f"[green]reuse instead of asking[/] [dim](Moss {hit['score']:.2f}, {hit['id']})[/]")
+        c.print(f"  Q: {question}")
+        c.print(f"  A: [bold]{answer}[/]")
+        c.print(f"  [dim]answered by {by} on {str(at)[:10]} · originally {wi}[/]")
+    finally:
+        R.shutdown()
+
+
 @retrieval_app.command("status")
 def retrieval_status() -> None:
     """Show which indexes exist on the Moss project + any pending outbox rows."""
@@ -643,6 +817,126 @@ def retrieval_status() -> None:
     finally:
         conn.close()
     c.print(f"[bold]outbox pending:[/] {pending}")
+
+
+@books_app.command("build")
+def books_build() -> None:
+    """Walk the system of record and post the full general ledger (idempotent)."""
+    from rich.console import Console
+
+    from .accounting.posting import build_books
+
+    c = Console()
+    c.print("[bold]posting the general ledger from the system of record[/] "
+            "[dim](every event → a balanced entry)[/]")
+    res = build_books()
+    for kind, n in sorted(res.get("by_kind", {}).items()):
+        c.print(f"  [cyan]{kind:18}[/] {n} entr{'y' if n == 1 else 'ies'}")
+    c.print(f"\n[green]posted {res['posted']}[/] new · {res['n'] - res['posted']} already on file"
+            + (f" · [red]{res['unbalanced']} refused (unbalanced)[/]" if res["unbalanced"] else ""))
+    if res.get("rejected"):
+        c.print(f"  [red]rejected:[/] {', '.join(res['rejected'][:8])}")
+
+
+@books_app.command("trial-balance")
+def books_trial_balance() -> None:
+    """Show the trial balance — it must tie (Σ debits == Σ credits) per currency."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from .accounting.books import trial_balance
+
+    c = Console()
+    tb = trial_balance()
+    for ccy, d in sorted(tb["currencies"].items()):
+        t = Table(title=f"Trial balance · {ccy}", header_style="bold")
+        t.add_column("acct"); t.add_column("account"); t.add_column("debit", justify="right")
+        t.add_column("credit", justify="right")
+        for r in sorted(d["rows"], key=lambda x: x["code"] or ""):
+            t.add_row(r["code"], r["account"], f"{r['debit']:,.0f}", f"{r['credit']:,.0f}")
+        t.add_row("", "[bold]TOTAL[/]", f"[bold]{d['total_debit']:,.0f}[/]",
+                  f"[bold]{d['total_credit']:,.0f}[/]")
+        c.print(t)
+        tie = "[green]✓ ties[/]" if d["balanced"] else "[red]✗ OUT OF BALANCE[/]"
+        c.print(f"  debits {d['total_debit']:,.2f} vs credits {d['total_credit']:,.2f}  {tie}\n")
+    c.print("[green bold]✓ the books balance[/]" if tb["balanced"]
+            else "[red bold]✗ the books do NOT balance[/]")
+
+
+@books_app.command("pnl")
+def books_pnl() -> None:
+    """Show the P&L — net transfer income, sponsorship, matchday, amortisation, agent fees."""
+    from rich.console import Console
+
+    from .accounting.books import pnl
+
+    c = Console()
+    for ccy, p in sorted(pnl().items()):
+        c.rule(f"[bold]P&L · {ccy}[/]")
+        c.print(f"  Net transfer income (disposals)   {p['net_transfer_income']:>16,.0f}")
+        c.print(f"  Sponsorship revenue               {p['sponsorship_revenue']:>16,.0f}")
+        c.print(f"  Matchday revenue                  {p['matchday_revenue']:>16,.0f}")
+        c.print(f"  FX gain/(loss)                    {p['fx_gain_loss']:>16,.0f}")
+        c.print(f"  [dim]Player wages                      {-p.get('player_wages',0):>16,.0f}[/]")
+        c.print(f"  [dim]Coaching & staff wages            {-p.get('staff_wages',0):>16,.0f}[/]")
+        c.print(f"  [dim]Player bonuses                    {-p.get('player_bonuses',0):>16,.0f}[/]")
+        c.print(f"  [dim]Amortisation expense              {-p['amortisation_expense']:>16,.0f}[/]")
+        c.print(f"  [dim]Agent fees (player-service)       {-p['agent_fees_expense']:>16,.0f}[/]")
+        c.print(f"  [bold]Net income                        {p['net_income']:>16,.0f}[/]")
+
+
+@books_app.command("scr")
+def books_scr() -> None:
+    """Squad-Cost Ratio: squad cost / revenue vs PL 85% / UEFA 70% — every input traceable."""
+    from rich.console import Console
+
+    from .accounting.books import squad_cost_ratio
+
+    c = Console()
+    s = squad_cost_ratio()
+    comp, rev = s["components"], s["revenue_components"]
+    c.rule("[bold]SQUAD-COST RATIO[/]  [dim](the number a CFO is judged on)[/]")
+    c.print(f"  wages                 {comp['wages']:>16,.0f}")
+    c.print(f"  player bonuses        {comp['player_bonuses']:>16,.0f}")
+    c.print(f"  transfer amortisation {comp['transfer_amortisation']:>16,.0f}")
+    c.print(f"  agent fees            {comp['agent_fees']:>16,.0f}")
+    c.print(f"  [bold]squad cost            {s['squad_cost']:>16,.0f}[/]")
+    c.print(f"  [dim]revenue               {s['revenue']:>16,.0f}[/]  "
+            f"[dim](transfer {rev['net_transfer_income']:,.0f} · sponsor {rev['sponsorship']:,.0f} "
+            f"· matchday {rev['matchday']:,.0f})[/]")
+    r = s["ratio_pct"]
+    pl = "[green]✓ within[/]" if s["within_pl"] else "[red]✗ over[/]"
+    ue = "[green]✓ within[/]" if s["within_uefa"] else "[red]✗ over[/]"
+    col = "green" if s["within_uefa"] else ("yellow" if s["within_pl"] else "red")
+    c.print(f"\n  [bold {col}]SCR = {r}%[/]   PL 85% {pl}   ·   UEFA 70% {ue}")
+    c.print(f"  [dim]{s['note']}[/]")
+
+
+@books_app.command("reverse")
+def books_reverse(
+    entry_id: str = typer.Argument(..., help="journal entry id to reverse, e.g. je-cap-tr-in-fr-1"),
+    reason: str = typer.Option("correction", "--reason"),
+) -> None:
+    """Reverse an entry (post its mirror image, linked) — the lawful closed-period fix."""
+    from .accounting.engine import reverse
+
+    typer.echo(reverse(entry_id, reason))
+
+
+@payroll_app.command("run")
+def payroll_run_cmd() -> None:
+    """Run the privileged payroll aggregation → golden.payroll_run (no salaries exposed)."""
+    from rich.console import Console
+
+    from .accounting.payroll import run_payroll
+
+    c = Console()
+    r = run_payroll()
+    c.print(f"[green]payroll run complete[/] · {r['periods']} periods · {r['headcount']} staff")
+    c.print(f"  annual gross [bold]€{r['annual_gross']:,.0f}[/] (monthly €{r['monthly_gross']:,.0f})")
+    c.print(f"  match-triggered bonuses · appearance €{r['total_appearance_bonus']:,.0f}"
+            f" · goal €{r['total_goal_bonus']:,.0f}")
+    c.print("  [dim]individual salaries never left payroll_private — the books see only this total[/]")
 
 
 if __name__ == "__main__":

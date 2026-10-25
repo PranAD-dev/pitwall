@@ -85,18 +85,72 @@ uv run pitwall agent onboard    # self-learning: mine history → draft policies
 uv run pitwall agent improve    # self-improving: corrections → a generalized policy
 ```
 
+## Moss — semantic retrieval (finds the row; Tiger stays the truth)
+
+Pit Wall uses **Moss** as an in-process semantic search layer over the *text* of the
+world, so the agent can **find** the right contract clause, past decision, policy,
+precedent or answered question in a few milliseconds — then always refetch the
+authoritative row from **Tiger** before it acts or speaks.
+
+**Five indexes**, one document per Tiger row; every document `id` is a Tiger primary key:
+
+| Index | one doc per | used for |
+|---|---|---|
+| `clauses` | contract clause | find a clause by meaning (+ the Final Whistle catch) |
+| `policies` | policy version | the policy governing a situation, as of a date |
+| `decisions` | work item | resolve "why did you …?" to a work item |
+| `precedents` | human correction | the self-improving loop's memory |
+| `questions` | answered question | reuse a prior answer instead of re-asking a human |
+
+- **Moss finds; Tiger is the truth.** No number is ever acted on or spoken from Moss
+  text — a hit is refetched from Tiger (`agent/read.py`) first. Salaries
+  (`payroll_private`) are **never** indexed. The indexer runs as a dedicated,
+  least-privilege **`retrieval`** Postgres role that can read records and write only
+  its two telemetry tables — it cannot post to the ledger or read a salary (live
+  `permission denied`).
+- **Rewind honesty.** Every decision/policy/clause doc carries a 10-digit epoch in
+  metadata, and every "as of" query applies a `decided_at ≤ as_of` (and
+  `valid_from ≤ as_of < valid_to`) filter **server-side in Moss** — so asking "why did
+  you hold this?" about a past moment shows only what the agent knew then.
+- **The Final Whistle catch.** When a result lands, Pit Wall unions the structured
+  clause lookup with a Moss semantic sweep; a clause Moss surfaces whose `kind` the
+  system doesn't recognize is escalated ("wording unclassified"), never auto-applied —
+  retrieval finds clauses the structured data missed. `pitwall retrieval final-whistle relegation`
+- **Reuse before re-asking.** Before asking a human, the agent checks `questions`; a
+  close prior answer is cited instead of asking again. `pitwall retrieval reuse "…" --to-role human_cfo`
+- **Resilience.** A gateway write refreshes the matching Moss doc on a background
+  worker *after* the commit — never inside the finance transaction; a Moss outage
+  falls to a durable `work.moss_outbox` and the write is untouched.
+- **Proof.** `pitwall eval retrieval` → **top-1 90% / top-3 93%** over 30 NL questions;
+  the date filter lifts month-named questions **75% → 100%**; Moss `time_taken_ms`
+  **p50 0 ms / p95 1 ms** (`docs/MOSS_PERF.md`).
+- **Optional + known limits.** With no `MOSS_PROJECT_ID/MOSS_PROJECT_KEY` retrieval is
+  off and the agent falls back to Tiger's structured lookups — nothing else changes.
+  Moss's free tier caps index count; Pit Wall uses five indexes, so a higher tier is
+  needed to build them all. Near-duplicate decisions (a legitimate vs a fraudulent
+  bank-detail change) can be hard to separate by text alone — the date filter and the
+  hard-check gate (**code decides**) cover that.
+
+```bash
+make retrieval                               # (re)build all five indexes (part of make reset)
+pitwall retrieval query clauses "relegation" # semantic search one index
+pitwall retrieval final-whistle relegation   # the "Moss found what structured missed" catch
+pitwall eval retrieval                        # score retrieval → docs/MOSS_PERF.md
+```
+
 ## Repo layout
 
 ```
 db/        SQL schema, roles, caggs, migrations (the Tiger Data story)
 world/     deterministic world generator + answer_key.json
-pitwall/   Python core: config, db, System of Work, gateway, agent, eval, cli
+pitwall/   Python core: config, db, System of Work, gateway, agent, retrieval, eval, cli
+  retrieval/ Moss semantic search: client bridge, Tiger→Moss docs, sync, query tools, Final Whistle
 sellers/   x402-protected evidence sellers (Node/TS, M3)
 skill/     reusable x402-verify package (Coinbase "ease of reuse", M3)
 web/       black terminal dashboard (Vite + React, M5)
-voice/     LiveKit + Cartesia read-only explainer (M7)
+voice/     LiveKit + Cartesia read-only explainer (M7) — spoken-reference resolve via Moss
 eval/      scoring harness output lives in docs/
-docs/      RESULTS.md, TIGER_PERF.md, COINBASE_FEEDBACK.md
+docs/      RESULTS.md, MOSS_PERF.md, TIGER_PERF.md, COINBASE_FEEDBACK.md
 ```
 
 ## Status

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pit Wall — Scenario Report</title>
+<style>
+  :root{ --volt:#c6ff2e; --ink:#05080c; --panel:#0d1319; --line:#1d2730; --muted:#7d8b97; --txt:#e8eef2;
+         --blue:#7fd4ff; --amber:#ffcf33; --red:#ff5564; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; min-height:100%; background:radial-gradient(1200px 640px at 50% -8%, #11202a 0%, var(--ink) 60%);
+    color:var(--txt); font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial; }
+  #app{ max-width:940px; margin:0 auto; padding:30px 24px 80px; }
+  header{ border-bottom:1px solid var(--line); padding-bottom:18px; }
+  .eyebrow{ color:var(--volt); font:800 11px/1 ui-monospace,Menlo,monospace; letter-spacing:.2em; text-transform:uppercase; }
+  h1{ font-size:22px; margin:6px 0 4px; }
+  .prompt{ color:#dfe9ef; font-size:17px; margin-top:8px; padding:12px 15px; background:var(--panel);
+    border:1px solid var(--line); border-left:3px solid var(--volt); }
+  .sub{ color:var(--muted); font-size:12px; margin-top:8px; font-family:ui-monospace,Menlo,monospace; }
+  section{ margin-top:34px; }
+  .shead{ display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .shead .k{ color:var(--volt); font:800 11px/1 ui-monospace,Menlo,monospace; letter-spacing:.18em; text-transform:uppercase; }
+  .shead .line{ flex:1; height:1px; background:var(--line); }
+  .step{ display:flex; gap:13px; padding:12px 0; border-top:1px solid var(--line); }
+  .step:first-child{ border-top:0; }
+  .step .n{ flex:none; width:24px; height:24px; border-radius:50%; background:rgba(198,255,46,.14);
+    color:var(--volt); font:800 12px/24px ui-monospace,Menlo,monospace; text-align:center; }
+  .step .tx{ color:#dfe9ef; font-size:15px; }
+  .step.recall .n{ background:rgba(127,212,255,.16); color:var(--blue); }
+  .q{ border:1px solid var(--line); border-radius:12px; background:var(--panel); overflow:hidden; margin-bottom:14px; }
+  .q .ql{ padding:11px 15px; font:13px ui-monospace,Menlo,monospace; color:var(--amber); background:rgba(255,207,51,.05);
+    border-bottom:1px solid var(--line); white-space:pre-wrap; word-break:break-word; }
+  .q .qr{ padding:6px 2px; }
+  .q .rc{ padding:6px 15px; color:var(--muted); font:12px ui-monospace,Menlo,monospace; }
+  table{ width:100%; border-collapse:collapse; }
+  th,td{ text-align:left; padding:8px 15px; border-top:1px solid var(--line); font:13px ui-monospace,Menlo,monospace; }
+  th{ color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.06em; font-size:11px; }
+  td{ color:#dbe6ee; }
+  .verdict{ border:1px solid var(--line); border-left:3px solid var(--volt); border-radius:12px; background:var(--panel); padding:15px 18px; }
+  .verdict.held{ border-left-color:var(--red); } .verdict.esc{ border-left-color:var(--amber); }
+  .verdict .big{ font-size:20px; font-weight:800; color:var(--volt); }
+  .verdict.held .big{ color:var(--red); } .verdict.esc .big{ color:var(--amber); }
+  .verdict .m{ color:var(--muted); font-size:13px; margin-top:4px; font-family:ui-monospace,Menlo,monospace; }
+  .cites{ color:var(--muted); font:12px ui-monospace,Menlo,monospace; margin-top:8px; }
+  .je{ margin-top:12px; }
+  .je .jt{ color:var(--blue); font:800 10px/1 ui-monospace,Menlo,monospace; letter-spacing:.12em; text-transform:uppercase; margin-bottom:6px; }
+  td.v{ text-align:right; color:var(--volt); white-space:nowrap; }
+  .report{ font-size:16px; line-height:1.65; color:#dfe9ef; padding:14px 16px; background:var(--panel); border:1px solid var(--line); }
+  .empty{ color:var(--muted); font-style:italic; }
+  /* ask the agent about this past decision */
+  #ask-sec{ margin-top:30px; }
+  #ask-thread{ display:flex; flex-direction:column; gap:10px; margin-bottom:12px; }
+  .qa{ display:flex; gap:11px; }
+  .qa .av{ flex:none; width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:12px; }
+  .qa.you .av{ background:rgba(255,255,255,.1); color:#dfe9ef; }
+  .qa.bot .av{ background:rgba(198,255,46,.16); color:var(--volt); }
+  .qa .bub{ flex:1; font-size:15px; line-height:1.55; padding:11px 15px; border:1px solid var(--line); border-radius:10px; background:var(--panel); }
+  .qa.bot .bub{ border-left:3px solid var(--volt); }
+  .qa.bot.thinking .bub{ color:var(--muted); font-style:italic; }
+  .askrow{ display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:5px 5px 5px 14px; }
+  .askrow .askp{ color:var(--volt); font-weight:800; }
+  #ask-input{ flex:1; background:transparent; border:0; color:var(--txt); font:15px ui-sans-serif,system-ui; outline:none; padding:11px 2px; }
+  #ask-go{ cursor:pointer; border:0; border-radius:999px; font-weight:800; background:var(--volt); color:var(--ink); padding:10px 20px; font-size:14px; }
+  #ask-go:disabled{ opacity:.5; cursor:not-allowed; }
+  .askhint{ color:var(--muted); font-size:12px; margin-top:8px; }
+</style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="eyebrow">Pit Wall · Scenario Report</div>
+      <h1 id="title">What the agent did</h1>
+      <div class="prompt" id="prompt"></div>
+      <div class="sub" id="sub"></div>
+    </header>
+
+    <section id="ask-sec" style="display:none">
+      <div class="shead"><span class="k">💬 Ask the agent why it did this</span><span class="line"></span></div>
+      <div id="ask-thread"></div>
+      <div class="askrow">
+        <span class="askp">?</span>
+        <input id="ask-input" placeholder="e.g. why did you hold it? what made you suspicious? why not auto-approve?" autocomplete="off" />
+        <button id="ask-go">Ask</button>
+      </div>
+      <div class="askhint">it answers only from this decision's own record — its reasoning, the queries it ran, and the audit trail.</div>
+    </section>
+
+    <section>
+      <div class="shead"><span class="k">① Its trace of thought</span><span class="line"></span></div>
+      <div id="think"></div>
+    </section>
+    <section>
+      <div class="shead"><span class="k">② What it touched in the database</span><span class="line"></span></div>
+      <div id="touched"></div>
+    </section>
+    <section>
+      <div class="shead"><span class="k">③ The decision</span><span class="line"></span></div>
+      <div id="decision"></div>
+    </section>
+    <section id="report-sec" style="display:none">
+      <div class="shead"><span class="k">④ The report it filed</span><span class="line"></span></div>
+      <div class="report" id="report"></div>
+    </section>
+  </div>
+
+<script>
+  (function(){
+    const $ = (s) => document.querySelector(s);
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+    // opened from History as /scenario-report?wi=WI-scn-xxxx → load the saved trace from the
+    // server; otherwise fall back to the just-run trace the terminal stashed in localStorage.
+    const wiParam = new URLSearchParams(location.search).get('wi');
+    let WI = wiParam || null;
+    let local = null;
+    try { local = JSON.parse(localStorage.getItem('pw_scenario_report') || 'null'); } catch (e) {}
+    const noneMsg = '<span class="empty">No saved trace — run this in the Teamwork Terminal first, then open it from History.</span>';
+    if (wiParam) {
+      fetch('/api/scenario/trace/' + encodeURIComponent(wiParam)).then((r) => r.json()).then((d) => {
+        if (d && d.found && d.steps && d.steps.length) go({ text: d.text, at: d.at, wi: d.wi, steps: d.steps });
+        else if (local && local.steps) go(local);
+        else $('#prompt').innerHTML = noneMsg;
+      }).catch(() => { if (local && local.steps) go(local); else $('#prompt').innerHTML = noneMsg; });
+    } else if (local && local.steps) { go(local); }
+    else { $('#prompt').innerHTML = noneMsg; }
+
+    function go(trace){
+    $('#prompt').textContent = trace.text || '';
+    $('#sub').textContent = (trace.wi ? trace.wi + '  ·  ' : '') + (trace.at ? trace.at.replace('T', ' ').slice(0, 19) : '');
+    document.title = 'Pit Wall — Scenario Report';
+    WI = WI || trace.wi || null;
+    if (WI) $('#ask-sec').style.display = '';
+
+    const steps = trace.steps || [];
+
+    // ① trace of thought — think + recall, in order
+    const tbox = $('#think'); let tn = 0;
+    steps.forEach((s) => {
+      if (s.kind === 'think' || s.kind === 'recall') {
+        tn++;
+        const d = document.createElement('div');
+        d.className = 'step' + (s.kind === 'recall' ? ' recall' : '');
+        d.innerHTML = '<div class="n">' + tn + '</div><div class="tx">' +
+          (s.kind === 'recall' ? '<b style="color:#7fd4ff">recalled memory · </b>' : '') + esc(s.text) + '</div>';
+        tbox.appendChild(d);
+      }
+    });
+    if (!tn) tbox.innerHTML = '<div class="empty">no reasoning steps captured.</div>';
+
+    // ② what it touched — pair each run_sql with the sql_result that follows it
+    const dbox = $('#touched'); let nq = 0;
+    for (let i = 0; i < steps.length; i++) {
+      if (steps[i].kind !== 'run_sql') continue;
+      nq++;
+      const query = steps[i].text || '';
+      let res = null;
+      for (let j = i + 1; j < steps.length; j++) { if (steps[j].kind === 'sql_result') { res = steps[j].data || {}; break; } if (steps[j].kind === 'run_sql') break; }
+      const wrap = document.createElement('div'); wrap.className = 'q';
+      let inner = '<div class="ql">' + esc(query) + '</div>';
+      if (res && res.error) inner += '<div class="rc" style="color:#ff5564">◂ ' + esc(res.error) + '</div>';
+      else {
+        const rows = (res && res.rows) || [], cols = (res && res.columns) || (rows[0] ? Object.keys(rows[0]) : []);
+        inner += '<div class="rc">◂ ' + rows.length + ' row' + (rows.length === 1 ? '' : 's') + '</div>';
+        if (rows.length) {
+          inner += '<div class="qr"><table><thead><tr>' + cols.map((c) => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
+            + rows.slice(0, 12).map((r) => '<tr>' + cols.map((c) => '<td>' + esc(r[c]) + '</td>').join('') + '</tr>').join('')
+            + '</tbody></table></div>';
+          if (rows.length > 12) inner += '<div class="rc">… +' + (rows.length - 12) + ' more</div>';
+        }
+      }
+      wrap.innerHTML = inner; dbox.appendChild(wrap);
+    }
+    if (!nq) dbox.innerHTML = '<div class="empty">it didn’t query the database for this one.</div>';
+
+    // ③ the decision — propose + verdict(+journal entry) + escalate / await_human
+    const cbox = $('#decision');
+    const prop = steps.filter((s) => s.kind === 'propose').pop();
+    const post = steps.filter((s) => s.kind === 'post').pop();
+    const esc_ = steps.filter((s) => s.kind === 'escalate').pop();
+    const ah = steps.filter((s) => s.kind === 'await_human').pop();
+    let html = '';
+    if (prop) {
+      const d = prop.data || {}; const sr = d.subject_refs || {}; const ks = Object.keys(sr);
+      html += '<div class="verdict"><div class="big">' + esc(d.situation_type || 'proposed') + '</div>'
+        + '<div class="m">' + esc(prop.text || d.reason || '') + '</div>'
+        + (ks.length ? '<div class="cites">cites ▸ ' + ks.map((x) => esc(x) + '=' + esc(sr[x])).join('   ') + '</div>' : '') + '</div>';
+    }
+    if (post) {
+      const o = post.data || {}; const fin = (o.final || '').toString();
+      const cls = fin.startsWith('HELD') ? ' held' : (fin.startsWith('NEEDS') || fin.startsWith('PROPOSED') ? ' esc' : '');
+      html += '<div class="verdict' + cls + '" style="margin-top:12px"><div class="big">▸ ' + esc(fin || o.action || 'posted') + '</div>'
+        + '<div class="m">' + esc(o.action || '') + (o.policy ? '  ·  auto-approved on ' + esc(o.policy) : '') + (o.escalated_to ? '  ·  → ' + esc(o.escalated_to) : '') + '</div>';
+      const jl = o.journal_lines || [];
+      if (jl.length) {
+        html += '<div class="je"><div class="jt">the money note it posted</div><table><thead><tr><th>account</th><th class="v">debit</th><th class="v">credit</th></tr></thead><tbody>'
+          + jl.map((l) => '<tr><td>' + esc(l.account || l.code || '') + '</td><td class="v">' + fmt(l.debit) + '</td><td class="v">' + fmt(l.credit) + '</td></tr>').join('')
+          + '</tbody></table></div>';
+      }
+      html += '</div>';
+    }
+    if (ah) { const d = ah.data || {};
+      html += '<div class="verdict esc" style="margin-top:12px"><div class="big">⚖ asked a human</div><div class="m">' + esc(d.question || '') + '</div></div>'; }
+    else if (esc_ && !post) {
+      html += '<div class="verdict esc" style="margin-top:12px"><div class="big">▸ escalated</div><div class="m">' + esc(esc_.text || '') + '</div></div>'; }
+    cbox.innerHTML = html || '<div class="empty">no decision recorded.</div>';
+
+    // ④ the report text, if any
+    const rep = steps.filter((s) => s.kind === 'report').pop();
+    if (rep && rep.text) { $('#report-sec').style.display = ''; $('#report').textContent = rep.text; }
+    }
+
+    function fmt(n){ const v = Number(n || 0); return v ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : ''; }
+
+    // ---- ask the agent about this past decision (grounded in its own record) ----
+    const askThread = $('#ask-thread'), askInput = $('#ask-input'), askGo = $('#ask-go');
+    function bubble(cls, text){
+      const d = document.createElement('div'); d.className = 'qa ' + cls;
+      d.innerHTML = '<div class="av">' + (cls.indexOf('you') >= 0 ? 'Y' : 'AI') + '</div><div class="bub"></div>';
+      d.querySelector('.bub').textContent = text; askThread.appendChild(d);
+      d.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return d;
+    }
+    async function ask(){
+      const q = (askInput.value || '').trim(); if (!q || !WI) return;
+      askInput.value = ''; askGo.disabled = true;
+      bubble('you', q);
+      const t = bubble('bot thinking', 'thinking…');
+      try {
+        const r = await fetch('/api/ask?' + new URLSearchParams({ wi: WI, q: q }).toString(), { method: 'POST' }).then((x) => x.json());
+        t.className = 'qa bot'; t.querySelector('.bub').textContent = (r && r.answer) || '(no answer)';
+      } catch (e) { t.className = 'qa bot'; t.querySelector('.bub').textContent = '(couldn’t reach the backend)'; }
+      askGo.disabled = false; askInput.focus();
+    }
+    if (askGo) { askGo.addEventListener('click', ask); askInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') ask(); }); }
+  })();
+</script>
+</body>
+</html>

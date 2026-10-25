@@ -32,6 +32,19 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _reindex(kind: str, tiger_id: str) -> None:
+    """After a commit, refresh the matching Moss document — fire-and-forget, on a
+    background worker. NEVER inside the finance transaction, NEVER able to raise or
+    block: Moss is a derived index, so a Moss outage falls to the outbox and the
+    write it followed is untouched. No-op when retrieval is unconfigured."""
+    try:
+        from ..retrieval import sync as _sync
+
+        _sync.enqueue_async(kind, tiger_id)
+    except Exception:
+        pass
+
+
 def _snapshot(item: dict) -> dict:
     """The audit-relevant fields of a work item, for diffing."""
     keys = ("state", "proposal", "proposed_by", "approved_by", "failing_check")
@@ -110,6 +123,8 @@ def transition(actor: Actor, item_id: str, action: str, *, patch: dict | None = 
     finally:
         conn.close()
 
+    if ok:
+        _reindex("decisions", item_id)  # refresh Moss AFTER commit, off the hot path
     if not ok:
         raise Denied(action, item_id, why)  # logged, then raised — never lost
     return item
@@ -152,6 +167,7 @@ def create_work_item(actor: Actor, item_id: str, kind: str, subject_refs: dict,
                 (_now(), actor.id, item_id, reason or f"synced {kind}",
                  Json({"state": {"from": None, "to": "NEW"}})))
             conn.commit()
+            _reindex("decisions", item_id)  # new work item → new Moss decision doc
             cur.execute("SELECT * FROM work.work_item WHERE id = %s", (item_id,))
             return cur.fetchone()
     finally:
@@ -234,6 +250,7 @@ def _policy_approve_and_post(item_id, policy_id, policy_version, journal_lines, 
                     "VALUES (%s,%s,%s,'gateway') ON CONFLICT (id) DO NOTHING",
                     (f"je-{item_id}", Json(journal_lines), item_id))
         conn.commit()
+        _reindex("decisions", item_id)  # approve-on-policy changed the decision
         return item
     finally:
         conn.close()

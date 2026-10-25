@@ -120,6 +120,18 @@
   #fc .pipe{display:flex;gap:14px;margin-top:12px;}
   #fc .pipe div{flex:1;} #fc .pipe .l{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;}
   #fc .pipe .n{font-size:17px;font-weight:800;color:var(--white);}
+  /* ---- annual-report view (IFRS notes) ---- */
+  #fc .rpt{margin-top:16px;border-top:1px solid rgba(255,255,255,.08);padding-top:12px;}
+  #fc .rpt h4{margin:0 0 3px;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.12em;font-weight:700;}
+  #fc .rpt .note{font-size:9.5px;color:var(--dim);opacity:.7;margin-bottom:8px;}
+  #fc .sl{display:flex;justify-content:space-between;font-size:12px;font-family:ui-monospace,monospace;padding:2.5px 0;color:var(--white);opacity:.82;}
+  #fc .sl.sub{padding-left:12px;opacity:.6;} #fc .sl.sub .v{color:var(--dim);}
+  #fc .sl.tot{border-top:1px solid rgba(255,255,255,.1);margin-top:3px;padding-top:5px;opacity:1;font-weight:800;}
+  #fc .sl.tot .v{color:var(--volt);}
+  #fc .ag{display:flex;align-items:center;gap:8px;font-size:11px;font-family:ui-monospace,monospace;margin:4px 0;}
+  #fc .ag .lb{flex:0 0 96px;color:var(--dim);} #fc .ag .tk{flex:1;height:7px;background:rgba(255,255,255,.07);}
+  #fc .ag .tk i{display:block;height:100%;background:var(--blue);}
+  #fc .ag.late .tk i{background:var(--red);} #fc .ag .vv{flex:0 0 46px;text-align:right;color:var(--white);opacity:.85;}
   /* ---- agent memory / policies ---- */
   #mem .prow{padding:9px 2px;border-bottom:1px solid rgba(255,255,255,.05);transition:all .3s;overflow:hidden;}
   #mem .prow.hit{background:rgba(198,255,46,.12);box-shadow:inset 3px 0 0 var(--volt);padding-left:9px;}
@@ -165,6 +177,7 @@
     </div>
     <div id="mem" class="cut" style="background:var(--panel);padding:16px 18px;">
       <h3>Agent memory · policies in force · learns + improves</h3>
+      <div id="agentctl" style="display:flex;gap:8px;align-items:center;margin:2px 0 12px;"></div>
       <div id="membody"><div class="muted">— loading —</div></div>
     </div>
   </div>
@@ -212,7 +225,6 @@ async function loadKPIs(){
     const tiles=[
       {l:'Squad-cost', v:ratio+'%', cls, pct:Math.min(100,ratio/lim*100), sub:'/'+lim+'%'},
       {l:'Cash pipeline', v:'£'+fmt(f.pipeline_net), cls:'ok', pct:70},
-      {l:'Precision', v:'100%', cls:'ok', pct:100},
       {l:'Work posted', v:(m.posted||0), cls:'ok', pct:Math.min(100,(m.posted||0)*4)},
     ];
     kpisEl.innerHTML='';
@@ -236,6 +248,47 @@ async function loadPolicies(){
   }catch(e){}
 }
 loadPolicies();
+
+// --- agent context: switch newbie ↔ onboarded, and onboard (learn from the records) ---
+const ABTN="font:700 11px ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;"+
+  "padding:7px 11px;border:1px solid var(--line);background:#0c0c0c;cursor:pointer;color:var(--white);";
+let agentMode='onboarded';
+async function loadAgentMode(){
+  try{ agentMode=((await fetch('/api/agent/mode').then(r=>r.json()))||{}).mode||'onboarded'; }catch(e){}
+  renderAgentCtl();
+}
+function renderAgentCtl(){
+  const box=document.getElementById('agentctl'); if(!box) return;
+  const newbie = agentMode!=='onboarded';
+  box.innerHTML='';
+  const tog=document.createElement('button'); tog.style.cssText=ABTN;
+  tog.style.borderColor = newbie?'var(--red)':'var(--volt)';
+  tog.style.color = newbie?'var(--red)':'var(--volt)';
+  tog.textContent = newbie?'○ NEWBIE AGENT':'● ONBOARDED AGENT';
+  tog.title='switch the current agent — newbie has no learned policies and escalates everything';
+  tog.onclick=()=>setMode(newbie?'onboarded':'newbie');
+  const ob=document.createElement('button'); ob.style.cssText=ABTN; ob.id='onboardBtn';
+  ob.textContent='⟳ ONBOARD';
+  ob.title='learn the accounting policies from the records';
+  ob.onclick=()=>onboardAgent(ob);
+  box.appendChild(tog); box.appendChild(ob);
+  document.getElementById('membody').style.opacity = newbie?'.22':'1';
+}
+async function setMode(m){
+  try{ await fetch('/api/agent/mode?mode='+encodeURIComponent(m),{method:'POST'}); }catch(e){}
+  agentMode=m; renderAgentCtl();
+  if(m!=='onboarded')
+    document.getElementById('membody').innerHTML=
+      '<div class="muted">— newbie: no learned policies · every decision escalates to a human —</div>';
+  else loadPolicies();
+}
+async function onboardAgent(btn){
+  const t=btn?btn.textContent:''; if(btn) btn.textContent='⟳ LEARNING…';
+  try{ await fetch('/api/agent/onboard',{method:'POST'}); }catch(e){}
+  agentMode='onboarded'; renderAgentCtl(); loadPolicies();
+  if(btn) btn.textContent=t||'⟳ ONBOARD';
+}
+loadAgentMode();
 
 function verdict(out){
   if(out.policy){
@@ -265,8 +318,50 @@ function renderForecast(d){
     `<div class="glimit" style="left:100%"></div></div></div>`+
     `<div class="pipe"><div><div class="l">pipeline in</div><div class="n up">£${fmt(s.pipeline_in)}</div></div>`+
     `<div><div class="l">pipeline out</div><div class="n">£${fmt(s.pipeline_out)}</div></div>`+
-    `<div><div class="l">net</div><div class="n up">£${fmt(s.pipeline_net)}</div></div></div>`;
+    `<div><div class="l">net</div><div class="n up">£${fmt(s.pipeline_net)}</div></div></div>`+
+    reportBlocks(s);
   loadKPIs();
+}
+
+// the annual-report view — our golden.* rolled up like a real club's IFRS notes
+function reportBlocks(s){
+  let h='';
+  const r=s.report;
+  if(r){
+    const ti=r.net_transfer_income||{}, ib=r.intangibles||{}, cm=r.commitments||{};
+    h+=`<div class="rpt"><h4>Annual-report view · IFRS notes</h4>`+
+       `<div class="note">our golden ledger, rolled up the way a club like BVB publishes it</div>`+
+       sl('Gross transfer proceeds',ti.gross_proceeds,'sub')+
+       sl('Transfer costs',ti.transfer_costs!=null?-ti.transfer_costs:null,'sub')+
+       sl('Residual carrying written off',ti.residual_carrying!=null?-ti.residual_carrying:null,'sub')+
+       sl('Net transfer income · Note 17',ti.net,'tot')+
+       sl('Player registrations · Note 1',ib.player_registrations)+
+       sl('Amortisation / yr · Note 21',ib.amortisation_annual!=null?-ib.amortisation_annual:null,'sub')+
+       sl(`Contingent add-ons · Note 34 (${cm.count||0})`,cm.contingent_addons)+
+       `</div>`;
+  }
+  const rc=s.receivables;
+  if(rc&&rc.buckets){
+    const mx=Math.max(1,...rc.buckets.map(b=>b.amount));
+    h+=`<div class="rpt"><h4>Trade receivables · aged · Notes 5 & 26</h4>`+
+       `<div class="note">open money owed to us (unpaid installments on sales), aged to the world's clock</div>`+
+       rc.buckets.map(b=>{
+         const late = b.key==='d30_89'||b.key==='d90';
+         return `<div class="ag ${late?'late':''}"><span class="lb">${esc(b.label)}</span>`+
+           `<span class="tk"><i style="width:${Math.round(100*b.amount/mx)}%"></i></span>`+
+           `<span class="vv">€${fmt(b.amount)}</span></div>`;
+       }).join('')+
+       sl('Gross receivables',rc.gross,'')+
+       sl('Allowance for doubtful',rc.allowance!=null?-rc.allowance:null,'sub')+
+       sl('Net receivables',rc.net,'tot')+
+       `</div>`;
+  }
+  return h;
+}
+function sl(label,v,cls){
+  const neg = (typeof v==='number'&&v<0);
+  const disp = v==null ? '—' : (neg?'(€'+fmt(-v)+')':'€'+fmt(v));
+  return `<div class="sl ${cls||''}"><span>${esc(label)}</span><span class="v">${disp}</span></div>`;
 }
 
 function addStep(step){

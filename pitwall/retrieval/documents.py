@@ -74,7 +74,10 @@ def clause_gloss(kind: str, params: dict, competitions: list | None, ambiguity: 
                              "stated condition (appearances / survival) is met.",
         "win_bonus": f"Result bonus: {amt} is payable on the agreed result / competition outcome.",
     }
-    base = g.get(kind, f"{kind.replace('_', ' ')} clause ({comp}).")
+    base = g.get(kind, f"Bespoke {kind.replace('_', ' ')} clause ({comp}).")
+    wording = params.get("wording") or params.get("text")
+    if wording:  # carry the real contract language into the searchable text
+        base += f' Exact wording: "{wording}"'
     if ambiguity:
         base += f"  AMBIGUOUS — wording must be escalated, never auto-applied: {ambiguity}"
     return base

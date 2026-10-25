@@ -8,6 +8,48 @@ Running log of defaults chosen without blocking the user, per the build prompt
 
 ---
 
+### D-016 — 2026-10-24 — Moss filter syntax + string-only metadata (grounded on the installed SDK)
+The installed `moss==1.21.0` differs from the public docs: `QueryOptions` has no
+`filters` kwarg — filters use `filter={"field","condition":{"$op":v}}` or
+`{"$and"/"$or":[…]}` (ops `$eq $ne $gt $gte $lt $lte $in $nin $near`), and document
+metadata values must be **strings**. So we store timestamps as 10-digit epoch strings
+(every date 2001–2286 is 10 digits → lexicographic `$lte` == numeric), build filters
+with a tiny DSL (`f_eq/f_lt/f_lte/f_gte/f_in/f_and`), and enforce the `as_of` rewind
+**server-side** in Moss. Verified live before building on it.
+**Why:** the public snippets are illustrative; the prompt said to use the real API.
+
+### D-015 — 2026-10-24 — Five separate Moss indexes (needs a paid tier); consolidation is one flag away
+Pit Wall uses five indexes (clauses/policies/decisions/precedents/questions). The free
+Moss tier caps index count (~3), so `build_all` hit "usage limit" on the 4th. We kept
+the five-index design (clearer story, cleaner filters) and the user upgraded the tier.
+`build_all` degrades gracefully per-index if the cap is hit.
+**Revisit:** if a tier is tight, a single `pitwall_memory` index with a `doc_kind`
+facet + metadata filters restores full function on one slot.
+
+### D-014 — 2026-10-24 — A 5th least-privilege DB role `retrieval` (not the gateway)
+The Moss indexer reads golden+work to build documents and writes ONLY its two
+telemetry tables (`work.moss_outbox`, `work.retrieval_metric`) + its own `actor=retrieval`
+audit rows. It is denied journal writes, installment updates, payroll reads, and audit
+mutation (proven live). Voice keeps `voice_readonly` for record reads and uses a
+`retrieval` connection only to record latency.
+**Why:** "limits in the database" is a core story — even the indexer that gets popped
+can't move a cent. Beats reusing the gateway role for telemetry.
+
+### D-013 — 2026-10-24 — Moss finds; Tiger is the truth (retrieval is a derived index)
+Every Moss document `id` is a Tiger primary key; after a hit the agent refetches the
+row from Tiger before acting or speaking, and payroll is never indexed. The gateway
+refreshes a doc on a background worker **after** commit (never inside the finance txn);
+a Moss outage falls to `work.moss_outbox` and the write is untouched. Decision summaries
+are Claude-written but number-validated against the record (else a grounded template).
+**Why:** retrieval must never become a second source of truth or a write-path risk.
+
+### D-012 — 2026-10-24 — Sync facade over the async Moss SDK on one loop thread
+`MossClient` is async and holds loaded-index state, so one client lives on a single
+daemon-thread event loop; the sync core marshals calls via `run_coroutine_threadsafe`.
+The async voice agent calls the same helpers through `asyncio.to_thread` so it never
+blocks the LiveKit loop. `shutdown()` closes the client so CLIs exit cleanly.
+**Why:** the whole core is synchronous psycopg; this avoids rewriting it async.
+
 ### D-011 — 2026-10-23 — Running on Tiger Cloud (hosted Postgres+TimescaleDB)
 `PITWALL_DATABASE_URL` points at a Tiger Cloud service (PostgreSQL 18.6, timescaledb
 + timescaledb_toolkit). Migrations run as `tsdbadmin`; the app connects as the

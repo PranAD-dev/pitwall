@@ -61,6 +61,10 @@ def f_lte(field: str, value: Any) -> dict:
     return {"field": field, "condition": {"$lte": str(value)}}
 
 
+def f_lt(field: str, value: Any) -> dict:
+    return {"field": field, "condition": {"$lt": str(value)}}
+
+
 def f_gte(field: str, value: Any) -> dict:
     return {"field": field, "condition": {"$gte": str(value)}}
 
@@ -255,6 +259,22 @@ def query(
             # not loaded yet → load once, retry
             await c.load_index(name)
             return await c.query(name, text, QueryOptions(**opts))
+
+    return _bridge.run(_op, timeout=60.0)
+
+
+def get_docs(name: str, doc_ids: list[str]) -> list[dict]:
+    """Fetch specific documents by id → [{id, text, metadata}]. (Moss is truth-of-text
+    only; callers still refetch the authoritative row from Tiger.)"""
+    from moss import GetDocumentsOptions
+
+    async def _op(c):
+        try:
+            got = await c.get_docs(name, GetDocumentsOptions(doc_ids=doc_ids))
+        except Exception:
+            return []
+        return [{"id": d.id, "text": d.text, "metadata": dict(getattr(d, "metadata", None) or {})}
+                for d in got]
 
     return _bridge.run(_op, timeout=60.0)
 

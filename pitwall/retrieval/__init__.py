@@ -15,14 +15,17 @@ from .client import (
     f_eq,
     f_gte,
     f_in,
+    f_lt,
     f_lte,
     f_ne,
     hits,
     is_available,
     meta,
     ms,
-    query,
 )
+# NOTE: do not re-export client.query here — it would shadow the `query` submodule
+# (pitwall.retrieval.query). Use `from .client import query` where the low-level
+# call is needed.
 
 # The five indexes (short names; client builds the prefixed full name).
 INDEXES = ("clauses", "policies", "decisions", "precedents", "questions")
@@ -35,11 +38,11 @@ __all__ = [
     "f_eq",
     "f_gte",
     "f_in",
+    "f_lt",
     "f_lte",
     "f_ne",
     "hits",
     "is_available",
     "meta",
     "ms",
-    "query",
 ]

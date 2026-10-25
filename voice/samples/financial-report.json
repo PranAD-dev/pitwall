@@ -1,0 +1,63 @@
+{
+  "title": "Harbourside FC — Financial Report",
+  "subtitle": "FY 2025/26 · management accounts · narrated by Pit Wall",
+  "scenes": [
+    {
+      "heading": "The year in one line",
+      "lines": [
+        ["Total revenue", "€119.2M"],
+        ["Operating profit", "€4.1M"],
+        ["Squad-cost ratio", "68%  ·  league limit 70%"]
+      ],
+      "say": "Welcome to Harbourside's financial report for the twenty twenty-five, twenty twenty-six season. The club earned one hundred nineteen million euros, turned a four point one million euro operating profit, and kept squad spending at sixty-eight percent of revenue, just inside the league's seventy percent limit."
+    },
+    {
+      "heading": "1 · Revenue — where the money comes from",
+      "lines": [
+        ["Broadcast rights", "€62.0M"],
+        ["Commercial & sponsorship", "€31.4M"],
+        ["Matchday & season tickets", "€25.8M"],
+        ["Total revenue", "€119.2M"]
+      ],
+      "say": "Revenue comes from three places. Broadcast rights are the biggest, at sixty-two million. Commercial and sponsorship deals add thirty-one point four million. And matchday and season tickets bring in twenty-five point eight. Together, one hundred nineteen point two million euros."
+    },
+    {
+      "heading": "2 · Player trading — unique to football",
+      "lines": [
+        ["Profit on player disposals", "€12.6M"]
+      ],
+      "note": "A bought player is a capital asset. Selling him above his written-down value books a profit — Harbourside's sales added €12.6M this year.",
+      "say": "Here's the part unique to football. A player the club buys is a capital asset on the books. When Harbourside sells one for more than his written-down value, the difference is a profit. Player sales added twelve point six million this year."
+    },
+    {
+      "heading": "3 · Costs — what the club spends",
+      "lines": [
+        ["Wages (players & staff)", "€44.4M"],
+        ["Amortisation of registrations", "€21.0M"],
+        ["Other operating costs", "€62.3M"],
+        ["Total costs", "€127.7M"]
+      ],
+      "note": "Wages + amortisation + agent fees are what the league's 70% squad-cost cap is measured against.",
+      "say": "On the cost side, wages are the big one, at forty-four point four million. Each bought player is written down over his contract — twenty-one million in amortisation this year. Add sixty-two million of other running costs, and total spend is one hundred twenty-seven point seven million."
+    },
+    {
+      "heading": "4 · The result — does it add up?",
+      "lines": [
+        ["Total income", "€131.8M"],
+        ["Total costs", "(€127.7M)"],
+        ["Operating profit", "€4.1M"],
+        ["Net cash position", "€8.9M"]
+      ],
+      "say": "Put it together. Income of one hundred thirty-one point eight million, against costs of one hundred twenty-seven point seven, leaves an operating profit of four point one million. And the club holds eight point nine million in cash. Harbourside is living within its means."
+    },
+    {
+      "heading": "5 · Every number ties back",
+      "lines": [
+        ["Journal entries posted", "198"],
+        ["Trial balance", "balanced to the cent ✓"],
+        ["Audit trail", "one query per figure"]
+      ],
+      "say": "And every figure here is built from the ledger. A hundred and ninety-eight journal entries, a trial balance that balances to the cent, and an audit trail that can explain any number with a single query. That's the whole point of Pit Wall: autonomous, but accountable."
+    }
+  ]
+}

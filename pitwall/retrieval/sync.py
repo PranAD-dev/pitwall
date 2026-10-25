@@ -11,6 +11,8 @@ audit log as actor='retrieval' — bookkeeping, never a finance action.
 
 from __future__ import annotations
 
+import queue
+import threading
 from datetime import datetime, timezone
 
 from ..config import get_settings
@@ -104,6 +106,55 @@ def upsert(kind: str, tiger_id: str, *, op: str = "upsert", use_llm: bool = Fals
     except Exception as e:
         _enqueue(kind, tiger_id, op, str(e))
         return {"queued": True, "error": str(e)[:160]}
+
+
+# --------------------------------------------------------------------------- #
+# enqueue_async — the gateway's fire-and-forget hook (bounded: ONE worker)
+# --------------------------------------------------------------------------- #
+_q: "queue.Queue | None" = None
+_worker_started = False
+_worker_lock = threading.Lock()
+
+
+def _worker() -> None:
+    assert _q is not None
+    while True:
+        kind, tiger_id, op = _q.get()
+        try:
+            upsert(kind, tiger_id, op=op)  # never raises; outboxes on Moss failure
+        except Exception:
+            pass
+        finally:
+            _q.task_done()
+
+
+def enqueue_async(kind: str, tiger_id: str, *, op: str = "upsert") -> None:
+    """Queue a single-document refresh to run on a background worker. Returns
+    immediately — the gateway must never wait on (or be failed by) Moss. A single
+    worker bounds Tiger/Moss concurrency to one, so a burst of transitions can't
+    open a connection storm."""
+    global _q, _worker_started
+    if not is_available():
+        return
+    with _worker_lock:
+        if _q is None:
+            _q = queue.Queue(maxsize=10_000)
+        if not _worker_started:
+            threading.Thread(target=_worker, daemon=True, name="moss-reindex").start()
+            _worker_started = True
+    try:
+        _q.put_nowait((kind, tiger_id, op))
+    except queue.Full:
+        pass  # drop under extreme load; the next build_all reconciles
+
+
+def drain_queue(timeout: float = 10.0) -> None:
+    """Block until the async reindex queue is empty (for tests / CLI teardown)."""
+    if _q is not None:
+        try:
+            _q.join()
+        except Exception:
+            pass
 
 
 # --------------------------------------------------------------------------- #

@@ -48,8 +48,17 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     pitwall_agent_model: str = "claude-sonnet-4-6"
     pitwall_llm_mode: str = "auto"
+    # agent context: onboarded = uses learned policies; newbie/no-context = escalates
+    # everything (showcase of what the learned policies are worth)
+    pitwall_agent_mode: str = "onboarded"
     pitwall_agent_daily_evidence_budget_usdc: float = 5.0
     pitwall_approval_threshold_usdc: float = 250000.0
+
+    # memory recall: how many prior memories to pull per lookup, and the similarity
+    # floor below which a hit is dropped (so a novel prompt says "no close match"
+    # instead of surfacing irrelevant memories — nonsense scores ~0, real hits >0.3)
+    pitwall_recall_top_k: int = 3
+    pitwall_recall_min_score: float = 0.2
 
     # --- x402 ---
     cdp_api_key_id: str | None = None
@@ -141,3 +150,63 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+# Runtime agent-context override — flipped live by the control-room toggle (a button
+# switches the current agent between a seasoned 'onboarded' agent and a 'newbie').
+# Falls back to the PITWALL_AGENT_MODE env default.
+_RUNTIME_AGENT_MODE: str | None = None
+
+
+def set_agent_mode(mode: str) -> None:
+    global _RUNTIME_AGENT_MODE
+    _RUNTIME_AGENT_MODE = mode
+
+
+def get_agent_mode() -> str:
+    return _RUNTIME_AGENT_MODE or get_settings().pitwall_agent_mode
+
+
+# the display name of the agent that was onboarded this session (so the stadium can
+# show "X is already onboarded" when you reopen the Onboard panel)
+_RUNTIME_AGENT_NAME: str | None = None
+
+
+def set_agent_name(name: str | None) -> None:
+    global _RUNTIME_AGENT_NAME
+    if name:
+        _RUNTIME_AGENT_NAME = name
+
+
+def get_agent_name() -> str | None:
+    return _RUNTIME_AGENT_NAME
+
+
+# the roster of agents onboarded this session — each with the policy snapshot it
+# approved. The Onboard panel lists these (you view an agent's policies here; you do
+# NOT pick policies up front — the agent learns them from the data).
+_ONBOARDED_AGENTS: list[dict] = []
+
+
+def register_onboarded_agent(name: str | None, policies: list[dict], *, engine: str | None = None) -> dict:
+    global _ONBOARDED_AGENTS
+    from datetime import datetime, timezone
+
+    name = (name or "Agent").strip() or "Agent"
+    rec = {"name": name, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+           "engine": engine, "policies": policies or []}
+    _ONBOARDED_AGENTS = [a for a in _ONBOARDED_AGENTS if a["name"] != name]  # re-onboard replaces
+    _ONBOARDED_AGENTS.append(rec)
+    set_agent_name(name)
+    return rec
+
+
+def list_onboarded_agents() -> list[dict]:
+    return list(reversed(_ONBOARDED_AGENTS))  # newest first
+
+
+def reset_agents() -> None:
+    """Forget every onboarded agent + the current agent name (back to a blank slate)."""
+    global _ONBOARDED_AGENTS, _RUNTIME_AGENT_NAME
+    _ONBOARDED_AGENTS = []
+    _RUNTIME_AGENT_NAME = None

@@ -118,12 +118,12 @@
         <a class="mtile" id="m-board" href="#">
           <div class="mno">02 · THE SYSTEM OF WORK, LIVE</div><div class="mt">Blueprint board</div>
           <div class="md">The six jumbotrons around you — sync · roles & SoD · state machine · audit · learned policies · forecast.</div><div class="mgo">▸</div></a>
-        <a class="mtile" id="m-score" href="#">
-          <div class="mno">03 · SCORED VS THE ANSWER KEY</div><div class="mt">21/21 · 100% · 0</div>
-          <div class="md">21 planted issues · 100% precision on auto-completes · 0 must-not-auto-complete violations.</div><div class="mgo">▸</div></a>
+        <a class="mtile mtile-onboard" id="m-onboard" href="#">
+          <div class="mno">03 · HIRE &amp; ONBOARD THE AGENT</div><div class="mt">Onboard</div>
+          <div class="md">Configure a fresh agent → watch it learn the club's accounting policies from the records, live on the board → approve what it proposes. Nothing goes live until you sign off.</div><div class="mgo">▸</div></a>
         <a class="mtile" id="m-explore" href="#">
-          <div class="mno">04 · THE APPEND-ONLY LEDGER</div><div class="mt">Transaction history</div>
-          <div class="md">Step the chain of events for each decision — what changed, the agent's reasoning, the evidence. Walk it with ← →.</div><div class="mgo">▸</div></a>
+          <div class="mno">04 · THE APPEND-ONLY LEDGER</div><div class="mt">History</div>
+          <div class="md">Every decision as a topic — click one to open its full report: the agent's thinking, what it touched, the human input, and a button to turn it into a video.</div><div class="mgo">▸</div></a>
       </div>
     </div>
   </div>
@@ -138,6 +138,19 @@
       };
     })();
   </script>
+
+  <!-- ============ DEV: play the report video ON the billboard ============ -->
+  <button id="report-dev" type="button"
+     title="dev: play the rendered report video on the stadium billboard"
+     onclick="window.__pwReportVideo ? window.__pwReportVideo() : (location.href='/report')">📊 REPORT VIDEO (dev)</button>
+  <style>
+    #report-dev{position:fixed;left:14px;bottom:14px;z-index:60;background:rgba(7,11,17,.82);
+      color:#c6ff2e;border:1px solid #c6ff2e;border-radius:999px;padding:9px 14px;text-decoration:none;
+      font:700 12px/1 ui-monospace,Menlo,monospace;letter-spacing:.04em;cursor:pointer;
+      box-shadow:0 6px 20px rgba(0,0,0,.4);}
+    #report-dev:hover{background:#c6ff2e;color:#05080c;}
+    body.pw-clean #report-dev{display:none;}
+  </style>
 
   <!-- ============ download the financial report (reports desk) ============ -->
   <button id="dl-report" title="download the financial report">⬇ DOWNLOAD REPORT</button>
@@ -234,9 +247,15 @@
       const dismiss=e=>{if(e)e.preventDefault();menu.style.display='none';control.style.display='none';btn.style.display='block';};
       // Control room = fly the camera to the terminal billboard (in-world), not an overlay
       const openControl=e=>{if(e)e.preventDefault();if(window.__pwActivateTerm){window.__pwActivateTerm();}else{dismiss();}};
-      const backToMenu=()=>{control.style.display='none';menu.style.display='flex';btn.style.display='none';};
+      const backToMenu=()=>{control.style.display='none';menu.style.display='flex';btn.style.display='none';
+        // leaving to the menu → tear down every in-world panel/bar (incl. the Topics rail)
+        if(window.__pwHideHistBar)window.__pwHideHistBar();
+        if(window.__pwHideTermBar)window.__pwHideTermBar();
+        if(window.__pwHideHITL)window.__pwHideHITL();
+        if(window.__pwHideTxrBar)window.__pwHideTxrBar();
+        if(window.__pwHideOnboardBar)window.__pwHideOnboardBar();};
       document.getElementById('m-control').addEventListener('click',openControl);
-      document.getElementById('m-score').addEventListener('click',function(e){if(e)e.preventDefault();if(window.__pwActivateScore){window.__pwActivateScore();}else{dismiss();}});
+      document.getElementById('m-onboard').addEventListener('click',function(e){if(e)e.preventDefault();if(window.__pwOnboardEntry){window.__pwOnboardEntry();}else{dismiss();}});
       document.getElementById('m-board').addEventListener('click',dismiss);
       document.getElementById('m-explore').addEventListener('click',function(e){if(e)e.preventDefault();if(window.__pwActivateHistory){window.__pwActivateHistory();}else{dismiss();}});
       document.getElementById('c-close').addEventListener('click',backToMenu);
@@ -301,11 +320,14 @@
     #term-bar .thint b{color:#c6ff2e;font-weight:800;}
     #term-bar #term-go{background:#c6ff2e;color:#05080c;border:0;padding:9px 16px;font-weight:800;cursor:pointer;letter-spacing:.04em;}
     #term-bar #term-close{background:transparent;color:rgba(255,255,255,.5);border:0;font-size:15px;cursor:pointer;padding:0 8px;}
+    #term-bar #scn-report{background:transparent;color:#7fd4ff;border:1px solid rgba(127,212,255,.45);padding:8px 13px;
+      font:800 11px ui-monospace,monospace;cursor:pointer;letter-spacing:.05em;white-space:nowrap;}
+    #term-bar #scn-report:hover{background:rgba(127,212,255,.14);border-color:#7fd4ff;}
   </style>
   <div id="term-bar">
-    <div class="tchips" id="t-chips"></div>
     <div class="trow"><span class="tprompt">▸</span>
-      <span class="thint">type on the board — <b>Enter</b> runs · <b>Esc</b> exits · or tap a preset ↑</span>
+      <span class="thint">the agent is on duty — hand it a case · <b>Enter</b> sends · <b>Esc</b> exits · <b>⌘V</b> paste</span>
+      <button id="scn-report" title="open the full report in a new window" style="display:none">📄 FULL REPORT</button>
       <button id="term-go">RUN</button><button id="term-close">✕</button></div>
   </div>
   <script>
@@ -315,12 +337,81 @@
       window.__pwHideTermBar=function(){bar.style.display='none';};
       document.getElementById('term-go').onclick=function(){if(window.__pwSubmitTerm)window.__pwSubmitTerm();};
       document.getElementById('term-close').onclick=function(){if(window.__pwDeactivateTerm)window.__pwDeactivateTerm();};
-      const PRE=[['Fraud','An email from a lookalike domain is asking us to pay the next Northgate transfer installment to a brand-new IBAN we have never used before'],
-        ['Add-on','The selling club invoiced us for a 25-appearance add-on bonus on a player we signed — check the match data and tell me if we actually owe it'],
-        ['Fee short','A 2,000,000 EUR incoming transfer fee on an international sale arrived about 5% short'],
-        ['Duplicate','We received a second agent-fee invoice for the same amount and transfer as one we already have, with a reformatted number']];
-      const ch=document.getElementById('t-chips');
-      PRE.forEach(function(p){const b=document.createElement('span');b.className='tchip';b.textContent=p[0];b.onclick=function(){if(window.__pwSetTermPrompt)window.__pwSetTermPrompt(p[1]);};ch.appendChild(b);});
+      // FULL REPORT → open the captured trace in a new window
+      const rb=document.getElementById('scn-report');
+      window.__pwShowScnReport=function(show){rb.style.display=show?'inline-block':'none';};
+      rb.onclick=function(){if(window.__pwOpenScnReport)window.__pwOpenScnReport();};
+    })();
+  </script>
+
+  <!-- ============ HITL — the human decides when the agent escalates (and it learns) ============ -->
+  <style>
+    #hitl-bar{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:46;display:none;flex-direction:column;
+      gap:9px;align-items:stretch;width:min(90vw,700px);font-family:ui-monospace,"SF Mono",Menlo,monospace;pointer-events:auto;
+      background:linear-gradient(160deg,rgba(26,20,8,.96),rgba(10,8,5,.97));border:1px solid rgba(255,207,51,.5);
+      border-top:3px solid #ffcf33;padding:13px 15px;box-shadow:0 20px 56px rgba(0,0,0,.6);
+      clip-path:polygon(0 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%);animation:hin .3s cubic-bezier(.2,1,.3,1);}
+    @keyframes hin{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+    #hitl-bar .hlead{display:flex;align-items:center;gap:9px;color:#ffcf33;font-weight:800;font-size:11px;letter-spacing:.14em;text-transform:uppercase;}
+    #hitl-bar .hlead .dot{width:8px;height:8px;border-radius:50%;background:#ffcf33;box-shadow:0 0 9px #ffcf33;animation:cp 1.2s infinite;}
+    #hitl-bar .hq{color:#eef3f7;font-size:14px;line-height:1.45;}
+    #hitl-bar .hreport{background:rgba(7,11,17,.6);border:1px solid rgba(127,212,255,.3);border-left:3px solid #7fd4ff;
+      padding:11px 13px;max-height:34vh;overflow:auto;font-family:ui-sans-serif,system-ui;}
+    #hitl-bar .hreport .hrh{color:#7fd4ff;font:800 10px ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px;}
+    #hitl-bar .hreport .hrs{color:#eef3f7;font-size:13.5px;line-height:1.5;margin-bottom:8px;}
+    #hitl-bar .hreport .hrk{color:#ffcf33;font:800 9.5px ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;margin:7px 0 3px;}
+    #hitl-bar .hreport .hrv{color:rgba(255,255,255,.8);font-size:12.5px;line-height:1.45;}
+    #hitl-bar .hreport .hrv.rec{color:#c6ff2e;font-weight:600;}
+    #hitl-bar .hreport ul{margin:0;padding-left:16px;} #hitl-bar .hreport li{color:rgba(255,255,255,.8);font-size:12.5px;line-height:1.5;}
+    #hitl-bar .hchips{display:flex;gap:7px;flex-wrap:wrap;}
+    #hitl-bar .hchip{font-size:12px;color:#ffcf33;background:rgba(255,207,51,.1);border:1px solid rgba(255,207,51,.4);
+      padding:7px 12px;cursor:pointer;letter-spacing:.02em;transition:all .12s;}
+    #hitl-bar .hchip:hover{background:rgba(255,207,51,.22);border-color:#ffcf33;}
+    #hitl-bar .hrow{display:flex;align-items:center;gap:7px;background:rgba(7,11,17,.7);border:1px solid rgba(255,207,51,.4);padding:3px 3px 3px 12px;}
+    #hitl-bar .hprompt{color:#ffcf33;font-weight:800;}
+    #hitl-bar #hitl-input{flex:1;background:transparent;border:0;color:#eef3f7;font:14px ui-monospace,monospace;outline:none;padding:9px 2px;}
+    #hitl-bar #hitl-go{background:#ffcf33;color:#1a1405;border:0;padding:9px 16px;font-weight:800;cursor:pointer;letter-spacing:.04em;}
+  </style>
+  <div id="hitl-bar">
+    <div class="hlead"><span class="dot"></span> <span id="hitl-role">the agent needs your decision</span></div>
+    <div class="hreport" id="hitl-report" style="display:none"></div>
+    <div class="hq" id="hitl-q"></div>
+    <div class="hchips" id="hitl-chips"></div>
+    <div class="hrow"><span class="hprompt">⚖</span>
+      <input id="hitl-input" placeholder="…or type your own decision and press Enter" autocomplete="off" spellcheck="false" />
+      <button id="hitl-go">SUBMIT DECISION</button></div>
+  </div>
+  <script>
+    (function(){
+      const bar=document.getElementById('hitl-bar'),q=document.getElementById('hitl-q'),
+            chips=document.getElementById('hitl-chips'),inp=document.getElementById('hitl-input'),
+            roleEl=document.getElementById('hitl-role');
+      function submit(v){v=(v||inp.value||'').trim();if(!v)return;if(window.__pwResolveHITL)window.__pwResolveHITL(v);}
+      const esc=s=>(s==null?'':String(s)).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+      const rep=document.getElementById('hitl-report');
+      function showReport(r){
+        if(!r){rep.style.display='none';rep.innerHTML='';return;}
+        let h='<div class="hrh">🔬 clause-analyst subagent · '+esc(r.by||'')+'</div>';
+        if(r.summary)h+='<div class="hrs">'+esc(r.summary)+'</div>';
+        if(r.interpretations&&r.interpretations.length){h+='<div class="hrk">interpretations</div><ul>'+r.interpretations.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';}
+        if(r.financial_implication)h+='<div class="hrk">financial implication</div><div class="hrv">'+esc(r.financial_implication)+'</div>';
+        if(r.risk)h+='<div class="hrk">risk</div><div class="hrv">'+esc(r.risk)+'</div>';
+        if(r.recommendation)h+='<div class="hrk">recommendation</div><div class="hrv rec">'+esc(r.recommendation)+'</div>';
+        rep.innerHTML=h;rep.style.display='block';
+      }
+      window.__pwShowHITL=function(d){
+        d=d||{};
+        roleEl.textContent='the agent needs the accounting team — that’s you';
+        showReport(d.clause_report);
+        q.textContent=d.question||'How should I handle this?';
+        chips.innerHTML='';
+        (d.options||[]).forEach(function(o){const c=document.createElement('span');c.className='hchip';c.textContent=o;c.onclick=function(){submit(o);};chips.appendChild(c);});
+        inp.value='';bar.style.display='flex';if(window.__pwHideTermBar)window.__pwHideTermBar();
+        setTimeout(function(){inp.focus();},60);
+      };
+      window.__pwHideHITL=function(){bar.style.display='none';if(window.__pwShowTermBar)window.__pwShowTermBar();};
+      document.getElementById('hitl-go').onclick=function(){submit();};
+      inp.addEventListener('keydown',function(e){e.stopPropagation();if(e.key==='Enter'){e.preventDefault();submit();}});
     })();
   </script>
 
@@ -335,6 +426,33 @@
     #hist-bar button:hover{background:rgba(198,255,46,.16);border-color:#c6ff2e;}
     #hist-bar .hlabel{color:rgba(255,255,255,.82);min-width:200px;text-align:center;font-size:12px;letter-spacing:.05em;}
     #hist-bar .hclose{color:rgba(255,255,255,.5)!important;border-color:rgba(255,255,255,.2)!important;}
+    /* topics rail — the list of transactions; click one to open its full report */
+    #hist-topics{position:fixed;top:64px;right:14px;z-index:45;display:none;width:min(31vw,310px);max-height:72vh;
+      flex-direction:column;background:linear-gradient(160deg,rgba(12,19,28,.95),rgba(6,10,15,.97));
+      border:1px solid rgba(198,255,46,.28);border-top:3px solid #c6ff2e;
+      box-shadow:0 20px 56px rgba(0,0,0,.6);font-family:"Rajdhani",ui-monospace,"SF Mono",Menlo,monospace;
+      clip-path:polygon(0 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%);}
+    #hist-topics .hth{padding:12px 15px 11px;border-bottom:1px solid rgba(198,255,46,.16);
+      background:linear-gradient(90deg,rgba(198,255,46,.08),transparent 70%);}
+    #hist-topics .htk{color:#c6ff2e;font:800 10px/1 ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase;}
+    #hist-topics .hts{display:block;color:rgba(255,255,255,.5);font-size:11.5px;margin-top:3px;letter-spacing:.02em;}
+    #ht-list{overflow:auto;padding:8px;}
+    #ht-list::-webkit-scrollbar{width:7px}#ht-list::-webkit-scrollbar-thumb{background:rgba(198,255,46,.25)}
+    #ht-list .topic{display:block;width:100%;text-align:left;cursor:pointer;color:#eef3f7;margin-bottom:7px;
+      background:linear-gradient(161deg,rgba(18,27,38,.9),rgba(9,14,20,.92));border:1px solid rgba(255,255,255,.1);
+      border-left:3px solid rgba(198,255,46,.5);padding:11px 13px;transition:all .13s;
+      clip-path:polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%);}
+    #ht-list .topic:hover{border-color:rgba(198,255,46,.5);border-left-color:#c6ff2e;transform:translateX(-2px);
+      background:linear-gradient(161deg,rgba(26,38,18,.92),rgba(11,17,9,.94));}
+    #ht-list .topic .tn{color:#c6ff2e;font:800 10px/1 ui-monospace,monospace;letter-spacing:.08em;}
+    #ht-list .topic .tt{display:block;font-size:14.5px;font-weight:700;margin:3px 0 2px;line-height:1.15;}
+    #ht-list .topic .tm{display:block;color:rgba(255,255,255,.5);font-size:11.5px;line-height:1.4;}
+    #ht-list .topic .tgo{display:flex;gap:7px;margin-top:8px;}
+    #ht-list .topic .tact{background:rgba(5,8,12,.6);color:#c6ff2e;border:1px solid rgba(198,255,46,.4);border-radius:6px;
+      padding:5px 10px;font:11px ui-monospace,monospace;cursor:pointer;letter-spacing:.02em;}
+    #ht-list .topic .tact:hover{background:rgba(198,255,46,.16);border-color:#c6ff2e;}
+    #ht-list .topic .twin{color:#7fd4ff;border-color:rgba(127,212,255,.4);}
+    #ht-list .topic .twin:hover{background:rgba(127,212,255,.14);border-color:#7fd4ff;}
   </style>
   <div id="hist-bar">
     <button id="hist-prev">←</button>
@@ -342,15 +460,98 @@
     <button id="hist-next">→</button>
     <button id="hist-close" class="hclose">✕</button>
   </div>
+  <div id="hist-topics">
+    <div class="hth"><span class="htk">▤ Topics</span><span class="hts">click a decision → its full report opens on the board</span></div>
+    <div id="ht-list"></div>
+  </div>
   <script>
     (function(){
       const bar=document.getElementById('hist-bar'), lab=document.getElementById('hist-label');
+      const panel=document.getElementById('hist-topics'), list=document.getElementById('ht-list');
+      const esc=s=>(s==null?'':String(s)).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
       window.__pwShowHistBar=function(){bar.style.display='flex';};
-      window.__pwHideHistBar=function(){bar.style.display='none';};
+      window.__pwHideHistBar=function(){bar.style.display='none';panel.style.display='none';};
       window.__pwHistLabel=function(i,n,wi){lab.textContent=(wi?wi+'  ·  ':'')+'event '+i+' / '+n;};
+      // build the topic rail from the distinct transactions; click → open the report window
+      window.__pwHistTopics=function(topics){
+        list.innerHTML='';
+        (topics||[]).forEach(function(t,i){
+          const b=document.createElement('div');b.className='topic';
+          const scn=String(t.wi||'').indexOf('WI-scn-')===0;   // a Teamwork-Terminal run
+          b.innerHTML='<span class="tn">'+esc(t.wi||('#'+(i+1)))+'</span><span class="tt">'+esc(t.title||'transaction')+'</span>'
+            +(t.meta?'<span class="tm">'+esc(t.meta)+'</span>':'')
+            +'<span class="tgo"><button class="tact tboard">▶ on billboard</button><button class="tact twin">↗ open window</button></span>';
+          function onBoard(){ if(!t.wi)return;
+            if(scn){ if(window.__pwScnReportBoardByWi)window.__pwScnReportBoardByWi(t.wi); }
+            else if(window.__pwTxReport)window.__pwTxReport(t.wi); }
+          function onWin(){ if(!t.wi)return;
+            window.open((scn?'/scenario-report?wi=':'/txreport?wi=')+encodeURIComponent(t.wi),'_blank'); }
+          b.querySelector('.tboard').onclick=function(e){e.stopPropagation();onBoard();};
+          b.querySelector('.twin').onclick=function(e){e.stopPropagation();onWin();};
+          b.onclick=onBoard;   // clicking the card = open on the billboard (the History experience)
+          list.appendChild(b);
+        });
+        panel.style.display=topics&&topics.length?'flex':'none';
+      };
       document.getElementById('hist-prev').onclick=function(){if(window.__pwHistStep)window.__pwHistStep(-1);};
       document.getElementById('hist-next').onclick=function(){if(window.__pwHistStep)window.__pwHistStep(1);};
       document.getElementById('hist-close').onclick=function(){if(window.__pwDeactivateHistory)window.__pwDeactivateHistory();if(window.__pwShowMenu)window.__pwShowMenu();};
+    })();
+  </script>
+
+  <!-- ============ transaction report (on a billboard) — step · talk · download ============ -->
+  <style>
+    #txr-bar{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:45;display:none;flex-direction:column;gap:9px;
+      align-items:stretch;width:min(90vw,720px);font-family:ui-monospace,"SF Mono",Menlo,monospace;pointer-events:auto;}
+    #txr-bar .txr-ans{display:none;color:#eef3f7;font-size:14px;line-height:1.5;background:linear-gradient(160deg,rgba(14,22,32,.96),rgba(7,11,17,.97));
+      border:1px solid rgba(127,212,255,.4);border-left:3px solid #7fd4ff;padding:12px 15px;
+      clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%);}
+    #txr-bar .txr-ans.thinking{color:rgba(255,255,255,.55);font-style:italic;}
+    #txr-bar .txr-row{display:flex;align-items:center;gap:7px;background:rgba(7,11,17,.88);border:1px solid rgba(198,255,46,.45);
+      padding:4px 4px 4px 13px;clip-path:polygon(0 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%);}
+    #txr-bar .txr-label{color:rgba(255,255,255,.8);font-size:11.5px;letter-spacing:.03em;min-width:150px;max-width:220px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+    #txr-bar button{background:rgba(5,8,12,.6);color:#c6ff2e;border:1px solid rgba(198,255,46,.4);border-radius:7px;
+      padding:8px 12px;font:13px ui-monospace,monospace;cursor:pointer;letter-spacing:.03em;white-space:nowrap;}
+    #txr-bar button:hover{background:rgba(198,255,46,.16);border-color:#c6ff2e;}
+    #txr-bar #txr-ask{flex:1;min-width:120px;background:transparent;border:0;border-bottom:1px solid rgba(127,212,255,.3);
+      color:#eef3f7;font:13px ui-monospace,monospace;outline:none;padding:8px 4px;}
+    #txr-bar #txr-send{color:#7fd4ff;border-color:rgba(127,212,255,.45);}
+    #txr-bar #txr-send:hover{background:rgba(127,212,255,.14);border-color:#7fd4ff;}
+    #txr-bar #txr-dl{color:#7fd4ff;border-color:rgba(127,212,255,.45);}
+    #txr-bar #txr-play{background:#c6ff2e;color:#05080c;font-weight:800;border-color:#c6ff2e;}
+    #txr-bar #txr-play:hover{filter:brightness(1.08);}
+    #txr-bar #txr-play.on{background:#ff5564;border-color:#ff5564;color:#fff;}
+    #txr-bar .txr-x{color:rgba(255,255,255,.5)!important;border-color:rgba(255,255,255,.2)!important;}
+  </style>
+  <div id="txr-bar">
+    <div class="txr-ans" id="txr-ans"></div>
+    <div class="txr-row">
+      <span class="txr-label" id="txr-label">transaction report</span>
+      <button id="txr-play">▶ Play</button>
+      <button id="txr-prev">←</button><button id="txr-next">→</button>
+      <button id="txr-dl">⬇ Download</button>
+      <input id="txr-ask" placeholder="ask the agent about this…" autocomplete="off" spellcheck="false" />
+      <button id="txr-send">Ask</button>
+      <button id="txr-close" class="txr-x">✕</button>
+    </div>
+  </div>
+  <script>
+    (function(){
+      const bar=document.getElementById('txr-bar'),lab=document.getElementById('txr-label'),
+            ans=document.getElementById('txr-ans'),inp=document.getElementById('txr-ask');
+      window.__pwShowTxrBar=function(wi){bar.style.display='flex';lab.textContent=wi||'transaction report';ans.style.display='none';ans.textContent='';inp.value='';};
+      window.__pwHideTxrBar=function(){bar.style.display='none';};
+      window.__pwTxrLabel=function(title,i,n){lab.textContent=(title||'')+'  ·  scene '+i+' / '+n;};
+      window.__pwTxrAnswer=function(text,thinking){ans.style.display='block';ans.className='txr-ans'+(thinking?' thinking':'');ans.textContent='🗣 '+text;};
+      window.__pwTxrPlaying=function(on){const b=document.getElementById('txr-play');b.textContent=on?'■ Stop':'▶ Play';b.classList.toggle('on',!!on);};
+      document.getElementById('txr-play').onclick=function(){if(window.__pwTxrPlay)window.__pwTxrPlay();};
+      function ask(){const q=(inp.value||'').trim();if(!q)return;inp.value='';if(window.__pwTxrAsk)window.__pwTxrAsk(q);}
+      document.getElementById('txr-prev').onclick=function(){if(window.__pwTxrStep)window.__pwTxrStep(-1);};
+      document.getElementById('txr-next').onclick=function(){if(window.__pwTxrStep)window.__pwTxrStep(1);};
+      document.getElementById('txr-dl').onclick=function(){if(window.__pwTxrDownload)window.__pwTxrDownload();};
+      document.getElementById('txr-send').onclick=ask;
+      inp.addEventListener('keydown',function(e){e.stopPropagation();if(e.key==='Enter'){e.preventDefault();ask();}});
+      document.getElementById('txr-close').onclick=function(){if(window.__pwTxrClose)window.__pwTxrClose();};
     })();
   </script>
 
@@ -392,6 +593,332 @@
       document.getElementById('b-replay').onclick=function(){speak(txt.textContent);};
     })();
   </script>
+
+  <!-- ============ ONBOARD — configure a fresh agent ============ -->
+  <style>
+    #onboard-cfg,#onboard-approve,#onboard-roster{position:fixed;inset:0;z-index:46;display:none;align-items:center;justify-content:center;
+      pointer-events:none;background:radial-gradient(1200px 820px at 50% 46%,rgba(5,8,12,.52),rgba(5,8,12,.86));
+      font-family:"Rajdhani",ui-monospace,"SF Mono",Menlo,monospace;color:#eef3f7;}
+    #onboard-approve{z-index:48;}
+    #onboard-cfg.out,#onboard-approve.out{animation:obfade .5s cubic-bezier(.4,0,.2,1) forwards;}
+    /* onboarded-agents roster */
+    #ro-list{display:flex;flex-direction:column;gap:10px;}
+    .rcard{border:1px solid rgba(255,255,255,.1);border-left:3px solid #c6ff2e;
+      background:linear-gradient(161deg,rgba(18,27,38,.9),rgba(9,14,20,.92));}
+    .rcard .rhead{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;}
+    .rcard .ravatar{flex:none;width:38px;height:38px;border-radius:50%;background:rgba(198,255,46,.14);color:#c6ff2e;
+      display:grid;place-items:center;font-weight:800;font-size:15px;}
+    .rcard .rmeta{flex:1;}
+    .rcard .rname{font-size:16px;font-weight:700;color:#eef3f7;}
+    .rcard .rsub{color:rgba(255,255,255,.5);font-size:12px;margin-top:2px;letter-spacing:.02em;}
+    .rcard .rchev{color:rgba(255,255,255,.4);transition:transform .15s;}
+    .rcard.open .rchev{color:#c6ff2e;transform:rotate(180deg);}
+    .rcard .rpol{display:none;padding:0 16px 14px;}
+    .rcard.open .rpol{display:block;}
+    .rcard .rpol .pol{padding:9px 0 9px 18px;position:relative;border-top:1px solid rgba(255,255,255,.07);
+      font-size:13px;line-height:1.5;color:rgba(255,255,255,.78);}
+    .rcard .rpol .pol::before{content:'▸';position:absolute;left:0;color:#c6ff2e;}
+    .rcard .rpol .pol b{color:#c6ff2e;font:800 11px/1 ui-monospace,monospace;margin-right:7px;}
+    .rcard .rpol .pol .ptag{font:800 9px/1 ui-monospace,monospace;letter-spacing:.1em;padding:2px 6px;margin-left:7px;vertical-align:1px;}
+    .rcard .rpol .pol .auto{background:#c6ff2e;color:#05080c;}
+    .rcard .rpol .pol .esc{color:#ffcf33;border:1px solid rgba(255,207,51,.5);}
+    .rempty{color:rgba(255,255,255,.5);font-style:italic;padding:18px 2px;text-align:center;}
+    @keyframes obfade{to{opacity:0;transform:scale(1.03);pointer-events:none;}}
+    .obwin{pointer-events:auto;width:min(94vw,720px);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;
+      background:linear-gradient(162deg,rgba(13,21,30,.98),rgba(6,10,15,.99));
+      border:1px solid rgba(198,255,46,.3);border-top:3px solid #c6ff2e;
+      box-shadow:0 28px 80px rgba(0,0,0,.7),0 0 0 1px rgba(0,0,0,.4),0 0 60px rgba(198,255,46,.06);
+      clip-path:polygon(0 0,100% 0,100% calc(100% - 20px),calc(100% - 20px) 100%,0 100%);
+      animation:obin .36s cubic-bezier(.2,1,.3,1);}
+    @keyframes obin{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1}}
+    .obhead{position:relative;padding:17px 22px;border-bottom:1px solid rgba(198,255,46,.16);
+      background:linear-gradient(90deg,rgba(198,255,46,.1),transparent 65%);overflow:hidden;}
+    .obhead::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:repeating-linear-gradient(0deg,rgba(255,255,255,.03) 0 1px,transparent 1px 4px);}
+    .obhead .obk{color:#c6ff2e;font-weight:800;font-size:11px;letter-spacing:.2em;}
+    .obhead .obt{font-size:27px;font-weight:800;letter-spacing:.01em;text-transform:uppercase;line-height:1.05;margin-top:2px;}
+    .obhead .obs{color:rgba(255,255,255,.5);font-size:12.5px;letter-spacing:.05em;margin-top:3px;}
+    .obbody{padding:20px 22px;overflow:auto;}
+    .obbody::-webkit-scrollbar{width:8px}.obbody::-webkit-scrollbar-thumb{background:rgba(198,255,46,.25)}
+    .oblabel{color:#c6ff2e;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin:4px 0 10px;}
+    .obbody .oblabel+.oblabel{margin-top:0;}
+    #ob-name{width:100%;background:rgba(5,8,12,.7);border:1px solid rgba(198,255,46,.3);color:#eef3f7;
+      font:16px "Rajdhani",ui-monospace,monospace;font-weight:600;padding:11px 14px;outline:none;letter-spacing:.02em;
+      clip-path:polygon(0 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%);}
+    #ob-name:focus{border-color:#c6ff2e;box-shadow:0 0 0 1px rgba(198,255,46,.4);}
+    .obengwrap{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+    .obeng{padding:13px 15px;cursor:pointer;user-select:none;text-align:left;
+      background:linear-gradient(161deg,rgba(18,27,38,.9),rgba(9,14,20,.92));border:1px solid rgba(255,255,255,.1);
+      clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);transition:all .14s;}
+    .obeng:hover{border-color:rgba(198,255,46,.45);}
+    .obeng.on{border-color:rgba(198,255,46,.6);background:linear-gradient(161deg,rgba(28,41,18,.92),rgba(12,18,10,.94));}
+    .obeng b{display:block;font-size:15px;font-weight:700;}
+    .obeng.on b{color:#c6ff2e;}
+    .obeng span{display:block;color:rgba(255,255,255,.45);font-size:11.5px;margin-top:2px;}
+    .obfoot{display:flex;align-items:center;gap:12px;padding:14px 22px;border-top:1px solid rgba(198,255,46,.16);background:rgba(7,11,17,.6);}
+    .obfoot .obnote{color:rgba(255,255,255,.45);font-size:12px;letter-spacing:.02em;}
+    .obbtn{background:transparent;color:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.18);
+      padding:10px 16px;font:12px "Rajdhani",ui-monospace,monospace;font-weight:700;cursor:pointer;letter-spacing:.08em;text-transform:uppercase;}
+    .obbtn:hover{color:#c6ff2e;border-color:rgba(198,255,46,.45);}
+    .obgo{margin-left:auto;background:#c6ff2e;color:#05080c;border:0;padding:11px 24px;font-weight:800;cursor:pointer;
+      letter-spacing:.08em;text-transform:uppercase;font-size:13px;box-shadow:0 6px 20px rgba(198,255,46,.25);transition:all .14s;}
+    .obgo:hover{filter:brightness(1.08);box-shadow:0 8px 28px rgba(198,255,46,.4);}
+    .obgo:disabled{background:rgba(198,255,46,.25);color:rgba(5,8,12,.6);cursor:not-allowed;box-shadow:none;}
+    /* approval rows */
+    #oa-list{display:flex;flex-direction:column;gap:9px;}
+    .oadim{color:rgba(255,255,255,.4);font-size:13px;padding:14px 2px;}
+    .oarow{display:flex;gap:13px;padding:13px 15px;cursor:pointer;user-select:none;
+      background:linear-gradient(161deg,rgba(18,27,38,.88),rgba(9,14,20,.9));border:1px solid rgba(255,255,255,.1);border-left:3px solid rgba(255,255,255,.14);
+      transition:all .14s;}
+    .oarow:hover{border-color:rgba(198,255,46,.4);}
+    .oarow.on{border-left-color:#c6ff2e;background:linear-gradient(161deg,rgba(24,36,16,.9),rgba(11,17,9,.92));}
+    .oarow .oacheck{flex:none;width:22px;height:22px;margin-top:1px;display:flex;align-items:center;justify-content:center;
+      border:1.5px solid rgba(198,255,46,.4);color:#05080c;background:transparent;font-weight:800;font-size:13px;border-radius:5px;transition:all .14s;}
+    .oarow.on .oacheck{background:#c6ff2e;border-color:#c6ff2e;box-shadow:0 0 12px rgba(198,255,46,.5);}
+    .oahead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:4px;}
+    .oaid{color:#c6ff2e;font-weight:800;font-size:12px;letter-spacing:.08em;}
+    .oatag{font-size:9.5px;font-weight:800;letter-spacing:.1em;padding:2px 7px;text-transform:uppercase;}
+    .oatag.auto{color:#05080c;background:#c6ff2e;}
+    .oatag.esc{color:#ffcf33;border:1px solid rgba(255,207,51,.5);}
+    .oameta{color:rgba(255,255,255,.4);font-size:11px;letter-spacing:.03em;}
+    .oatext{color:rgba(255,255,255,.78);font-size:13.5px;line-height:1.5;}
+    /* reasoning / tables drill-down */
+    .oareason-btn{margin-top:16px;width:100%;text-align:left;background:rgba(5,8,12,.5);color:#7fd4ff;
+      border:1px solid rgba(127,212,255,.32);padding:12px 15px;font:13px "Rajdhani",ui-monospace,monospace;font-weight:700;
+      cursor:pointer;letter-spacing:.02em;transition:all .14s;
+      clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);}
+    .oareason-btn:hover{border-color:#7fd4ff;background:rgba(127,212,255,.1);}
+    .oareason{display:none;margin-top:12px;padding:16px 18px;background:rgba(5,8,12,.6);border:1px solid rgba(255,255,255,.1);border-left:3px solid #7fd4ff;}
+    .oareason.open{display:block;animation:obin .3s ease;}
+    .oareason h4{color:#7fd4ff;font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin:0 0 9px;}
+    .oareason h4+ h4,.oareason ul+h4{margin-top:18px;}
+    .oareason .oasql{font-family:ui-monospace,monospace;font-size:12px;color:#ffcf33;background:rgba(0,0,0,.35);
+      padding:9px 12px;margin-bottom:6px;white-space:pre-wrap;word-break:break-word;border-left:2px solid rgba(255,207,51,.5);}
+    .oareason .oasqlr{font-family:ui-monospace,monospace;font-size:11.5px;color:rgba(255,255,255,.55);padding:0 2px 6px;white-space:pre-wrap;word-break:break-word;}
+    .oareason ul{list-style:none;margin:0;padding:0;}
+    .oareason li{position:relative;padding:5px 0 5px 18px;color:rgba(255,255,255,.78);font-size:13px;line-height:1.5;}
+    .oareason li::before{content:'▸';position:absolute;left:0;color:#7fd4ff;}
+    .oareason li b{color:#eef3f7;font-weight:700;}
+    .oareason li .oawhy{display:block;color:rgba(255,255,255,.5);font-size:12px;margin-top:1px;}
+    .obgo.pulse{animation:obpulse 1.5s ease-in-out infinite;}
+    @keyframes obpulse{0%,100%{box-shadow:0 6px 20px rgba(198,255,46,.25)}50%{box-shadow:0 6px 30px rgba(198,255,46,.6)}}
+    /* on-field HUD bar while onboarding streams on the billboard */
+    #onboard-bar{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:45;display:none;
+      align-items:center;gap:10px;background:rgba(7,11,17,.9);border:1px solid rgba(198,255,46,.45);padding:8px 10px 8px 16px;
+      font-family:ui-monospace,"SF Mono",Menlo,monospace;clip-path:polygon(0 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%);}
+    #onboard-bar .oblive{display:flex;align-items:center;gap:7px;color:#c6ff2e;font-weight:800;font-size:11px;letter-spacing:.12em;}
+    #onboard-bar .oblive .dot{width:8px;height:8px;border-radius:50%;background:#c6ff2e;box-shadow:0 0 9px #c6ff2e;animation:cp 1.2s infinite;}
+    #onboard-bar button{background:rgba(5,8,12,.6);color:#c6ff2e;border:1px solid rgba(198,255,46,.4);border-radius:7px;
+      padding:9px 14px;font:12px ui-monospace,monospace;cursor:pointer;letter-spacing:.04em;transition:all .12s;}
+    #onboard-bar button:hover{background:rgba(198,255,46,.16);border-color:#c6ff2e;}
+    #onboard-bar #ob-approve,#onboard-bar #ob-control{background:#c6ff2e;color:#05080c;font-weight:800;border-color:#c6ff2e;}
+    #onboard-bar #ob-approve:disabled{background:rgba(198,255,46,.2);color:rgba(5,8,12,.55);cursor:not-allowed;border-color:rgba(198,255,46,.25);}
+    #onboard-bar #ob-approve.pulse,#onboard-bar #ob-control.pulse{animation:obpulse 1.4s ease-in-out infinite;}
+    #onboard-bar .ob-bar-close{color:rgba(255,255,255,.5)!important;border-color:rgba(255,255,255,.2)!important;}
+  </style>
+  <div id="onboard-roster">
+    <div class="obwin">
+      <div class="obhead">
+        <div class="obk">⚙ ONBOARDED AGENTS</div>
+        <div class="obt">Your agents</div>
+        <div class="obs">Each agent and the accounting policies it learned &amp; you approved. Expand one to see its policies, or create a new agent to onboard from scratch.</div>
+      </div>
+      <div class="obbody"><div id="ro-list"></div></div>
+      <div class="obfoot">
+        <span class="obnote" id="ro-note"></span>
+        <button class="obbtn" id="ro-close">✕ Close</button>
+        <button class="obgo" id="ro-new">＋ Create new agent</button>
+      </div>
+    </div>
+  </div>
+  <div id="onboard-cfg">
+    <div class="obwin">
+      <div class="obhead">
+        <div class="obk">⚡ CREATE A NEW AGENT</div>
+        <div class="obt">Name the agent</div>
+        <div class="obs">It will mine the club's records and discover the accounting policies itself — you approve what it proposes. You don't pick policies up front.</div>
+      </div>
+      <div class="obbody">
+        <div class="oblabel">Agent name</div>
+        <input id="ob-name" value="Rookie Agent" maxlength="28" autocomplete="off" spellcheck="false" />
+        <div class="oblabel" style="margin-top:22px">Reasoning engine</div>
+        <div class="obengwrap" id="ob-engine"></div>
+      </div>
+      <div class="obfoot">
+        <span class="obnote">Nothing goes live until a human approves.</span>
+        <button class="obbtn" id="ob-cancel">✕ Cancel</button>
+        <button class="obgo" id="ob-go">⚡ Onboard agent</button>
+      </div>
+    </div>
+  </div>
+  <div id="onboard-approve">
+    <div class="obwin">
+      <div class="obhead">
+        <div class="obk">⚖ HUMAN SIGN-OFF REQUIRED</div>
+        <div class="obt">Approve learned policies</div>
+        <div class="obs">The agent drafted these from the club's own history. Approve the ones you trust — each approval is written to the append-only audit log.</div>
+      </div>
+      <div class="obbody">
+        <div class="oalabel">Policies it drafted</div>
+        <div id="oa-list"></div>
+        <button class="oareason-btn" id="oa-reason-btn">🔍 See how it reasoned — the tables it examined &amp; the standards it cited ▾</button>
+        <div class="oareason" id="oa-reason"></div>
+      </div>
+      <div class="obfoot">
+        <span class="obnote">Approving activates these treatments for auto-posting.</span>
+        <button class="obbtn" id="oa-cancel">✕ Not yet</button>
+        <button class="obgo pulse" id="oa-go">✓ Approve policies</button>
+      </div>
+    </div>
+  </div>
+  <div id="onboard-bar">
+    <span class="oblive"><span class="dot"></span> ONBOARDING LIVE ON THE BOARD</span>
+    <button id="ob-view">◎ View on billboard</button>
+    <button id="ob-approve" disabled>⚖ Review &amp; approve</button>
+    <button id="ob-control" style="display:none">▸ Go to Teamwork Terminal</button>
+    <button id="ob-bar-close" class="ob-bar-close">✕</button>
+  </div>
+  <script>
+    // --- onboarded-agents roster: list agents + their policies, or create a new one ---
+    (function(){
+      const ov=document.getElementById('onboard-roster'),list=document.getElementById('ro-list'),note=document.getElementById('ro-note');
+      const esc=s=>(s==null?'':String(s)).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+      async function load(){
+        list.innerHTML='<div class="rempty">loading agents…</div>';note.textContent='';
+        let agents=[];
+        try{agents=((await fetch('/api/agents').then(r=>r.json()))||{}).agents||[];}catch(e){}
+        if(!agents.length){list.innerHTML='<div class="rempty">No agents onboarded yet — create one to begin.</div>';return;}
+        note.textContent=agents.length+' agent'+(agents.length===1?'':'s')+' onboarded';
+        list.innerHTML='';
+        agents.forEach((a,i)=>{
+          const card=document.createElement('div');card.className='rcard'+(i===0?' open':'');
+          const when=a.at?(' · '+String(a.at).replace('T',' ').slice(0,16)):'';
+          const pols=(a.policies||[]).map(p=>'<div class="pol"><b>'+esc(p.id)+'</b>'+esc(p.text)
+            +'<span class="ptag '+(p.auto?'auto':'esc')+'">'+(p.auto?'AUTO':'ESCALATES')+'</span></div>').join('')
+            ||'<div class="pol">no policies recorded</div>';
+          card.innerHTML='<div class="rhead"><div class="ravatar">'+esc(String(a.name||'A').slice(0,2).toUpperCase())+'</div>'
+            +'<div class="rmeta"><div class="rname">'+esc(a.name)+'</div><div class="rsub">'+((a.policies||[]).length)+' policies'+esc(when)+'</div></div>'
+            +'<div class="rchev">▾</div></div><div class="rpol">'+pols+'</div>';
+          card.querySelector('.rhead').onclick=()=>card.classList.toggle('open');
+          list.appendChild(card);
+        });
+      }
+      window.__pwOpenRoster=function(){ov.style.display='flex';load();};
+      function close(){ov.style.display='none';}
+      document.getElementById('ro-close').onclick=function(){close();if(window.__pwShowMenu)window.__pwShowMenu();};
+      document.getElementById('ro-new').onclick=function(){close();if(window.__pwOpenOnboardCfg)window.__pwOpenOnboardCfg();};
+    })();
+    // --- create-new-agent: just a name + reasoning engine (NO policy picking — the
+    //     agent discovers the policies itself; you approve them after) ---
+    (function(){
+      const cfg=document.getElementById('onboard-cfg');
+      let engine='both';
+      const engWrap=document.getElementById('ob-engine');
+      [['both','Pattern + Model','mine precedents, then reason over them'],['pattern','Pattern only','deterministic · offline']].forEach(([k,l,s])=>{
+        const b=document.createElement('div');b.className='obeng'+(k==='both'?' on':'');
+        b.innerHTML='<b>'+l+'</b><span>'+s+'</span>';
+        b.onclick=()=>{engine=k;engWrap.querySelectorAll('.obeng').forEach(x=>x.classList.toggle('on',x===b));};
+        engWrap.appendChild(b);
+      });
+      window.__pwOpenOnboardCfg=function(){cfg.style.display='flex';document.getElementById('ob-name').focus();};
+      function close(){cfg.style.display='none';}
+      document.getElementById('ob-cancel').onclick=close;
+      document.getElementById('ob-go').onclick=function(){
+        const name=(document.getElementById('ob-name').value||'').trim()||'Rookie Agent';
+        try{localStorage.setItem('pw_agent_name',name);}catch(e){}
+        const config={agent:name,roles:[]};   // learn everything — no up-front policy picking
+        if(engine==='pattern')config.use_llm=false;
+        close();
+        if(window.__pwHideMenu)window.__pwHideMenu();
+        if(window.__pwActivateOnboard)window.__pwActivateOnboard(config);
+      };
+    })();
+    // --- on-field HUD bar ---
+    (function(){
+      const bar=document.getElementById('onboard-bar'),approveBtn=document.getElementById('ob-approve');
+      const live=bar.querySelector('.oblive'),viewBtn=document.getElementById('ob-view'),ctrlBtn=document.getElementById('ob-control');
+      window.__pwShowOnboardBar=function(ready){
+        bar.style.display='flex';
+        live.innerHTML='<span class="dot"></span> ONBOARDING LIVE ON THE BOARD';
+        viewBtn.style.display='';approveBtn.style.display='';ctrlBtn.style.display='none';
+        approveBtn.disabled=!ready;approveBtn.classList.toggle('pulse',!!ready);
+      };
+      window.__pwHideOnboardBar=function(){bar.style.display='none';};
+      window.__pwOnboardReady=function(){approveBtn.disabled=false;approveBtn.classList.add('pulse');};
+      // onboarding concluded → swap the controls for a "go to the Teamwork Terminal" action
+      window.__pwOnboardDone=function(indexed){
+        bar.style.display='flex';
+        live.innerHTML='<span class="dot"></span> ONBOARDING COMPLETE · SAVED TO MEMORY';
+        viewBtn.style.display='none';approveBtn.style.display='none';
+        ctrlBtn.style.display='';ctrlBtn.classList.add('pulse');
+      };
+      viewBtn.onclick=function(){if(window.__pwOnboardFocus)window.__pwOnboardFocus();};
+      approveBtn.onclick=function(){if(window.__pwOnboardFocus)window.__pwOnboardFocus();if(window.__pwOpenApprove)window.__pwOpenApprove();};
+      ctrlBtn.onclick=function(){if(window.__pwGotoControl)window.__pwGotoControl();};
+      document.getElementById('ob-bar-close').onclick=function(){if(window.__pwDeactivateOnboard)window.__pwDeactivateOnboard();if(window.__pwShowMenu)window.__pwShowMenu();};
+    })();
+    // --- approval screen: a human signs off → smooth transition back to the billboard ---
+    (function(){
+      const ov=document.getElementById('onboard-approve'),list=document.getElementById('oa-list'),btn=document.getElementById('oa-go');
+      const esc=s=>(s==null?'':String(s)).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+      // the onboarding trail (the tables it examined + how it reasoned), fed by main.js
+      let lastTrail=null;
+      window.__pwOnboardTrail=function(t){lastTrail=t;};
+      const reasonBtn=document.getElementById('oa-reason-btn'),reasonPanel=document.getElementById('oa-reason');
+      const SHOW_TXT='🔍 See how it reasoned — the tables it examined & the standards it cited ▾';
+      const HIDE_TXT='🔼 Hide the reasoning';
+      function renderReason(){
+        const t=lastTrail||{};let h='';
+        h+='<h4>Tables it examined</h4>';
+        if(t.sqlQuery)h+='<div class="oasql">'+esc(t.sqlQuery)+'</div>';
+        if(t.sqlResult)h+='<div class="oasqlr">'+esc(t.sqlResult)+'</div>';
+        if(t.patterns&&t.patterns.length){h+='<ul>';t.patterns.forEach(p=>{h+='<li><b>'+esc(p.name)+'</b> — '+(p.evidence||0)+' records of precedent</li>';});h+='</ul>';}
+        else h+='<div class="oadim">no table data captured.</div>';
+        h+='<h4>How it reasoned</h4>';
+        if(t.think&&t.think.length){h+='<ul>';t.think.forEach(x=>{h+='<li>'+esc(x)+'</li>';});h+='</ul>';}
+        if(t.policies&&t.policies.length){h+='<ul>';t.policies.forEach(p=>{const d=p.why||p.treatment||'';h+='<li><b>'+esc(p.name)+'</b>'+(d?'<span class="oawhy">'+esc(d)+'</span>':'')+'</li>';});h+='</ul>';}
+        if(t.gap){h+='<h4>What it refused to guess</h4><ul><li>'+esc(t.gap)+'</li></ul>';}
+        reasonPanel.innerHTML=h;
+      }
+      reasonBtn.onclick=function(){
+        const open=reasonPanel.classList.toggle('open');
+        reasonBtn.textContent=open?HIDE_TXT:SHOW_TXT;
+        if(open)renderReason();
+      };
+      let pending=[];const checked=new Set();
+      function label(){btn.textContent='✓ Approve '+checked.size+' polic'+(checked.size===1?'y':'ies');btn.disabled=checked.size===0;}
+      async function load(){
+        reasonPanel.classList.remove('open');reasonBtn.textContent=SHOW_TXT;
+        list.innerHTML='<div class="oadim">loading proposed policies…</div>';
+        try{pending=((await fetch('/api/agent/policies/pending').then(r=>r.json()))||{}).pending||[];}catch(e){pending=[];}
+        checked.clear();pending.forEach(p=>checked.add(p.id));render();
+      }
+      function render(){
+        if(!pending.length){list.innerHTML='<div class="oadim">no policies awaiting approval — run onboarding first.</div>';btn.disabled=true;btn.textContent='✓ Approve policies';return;}
+        list.innerHTML='';
+        pending.forEach(p=>{
+          const row=document.createElement('div');row.className='oarow on';
+          const badge=p.auto?'<span class="oatag auto">AUTO-POST</span>':'<span class="oatag esc">ESCALATES</span>';
+          row.innerHTML='<div class="oacheck">✓</div><div class="oabody"><div class="oahead"><span class="oaid">'+esc(p.id)+'</span>'+badge+'<span class="oameta">'+esc(p.basis||'')+' · '+(p.evidence||0)+' records</span></div><div class="oatext">'+esc(p.text)+'</div></div>';
+          row.onclick=()=>{const on=row.classList.toggle('on');row.querySelector('.oacheck').textContent=on?'✓':'';if(on)checked.add(p.id);else checked.delete(p.id);label();};
+          list.appendChild(row);
+        });
+        label();
+      }
+      window.__pwOpenApprove=function(){ov.style.display='flex';load();};
+      function close(){ov.style.display='none';}
+      document.getElementById('oa-cancel').onclick=close;
+      btn.onclick=async function(){
+        const ids=Array.from(checked);if(!ids.length)return;
+        btn.disabled=true;btn.textContent='signing…';
+        let res={};
+        try{res=await fetch('/api/agent/policy/approve?ids='+encodeURIComponent(ids.join(',')),{method:'POST'}).then(r=>r.json());}catch(e){}
+        ov.classList.add('out');
+        setTimeout(()=>{ov.classList.remove('out');close();if(window.__pwOnboardApproved)window.__pwOnboardApproved((res&&res.audit)||[],(res&&res.by)||'controller',(res&&res.indexed)||0);},540);
+      };
+    })();
+  </script>
+
   <div id="rotate">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
       <rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 3.5A9 9 0 0 1 12 2"/><path d="M17 20.5A9 9 0 0 1 12 22"/>

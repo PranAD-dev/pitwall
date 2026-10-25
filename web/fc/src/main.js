@@ -11,9 +11,8 @@ import { createMatch } from './match.js';
 import { createCameraRig } from './cameraRig.js';
 import { createHud } from './hud.js';
 import { createPostFX } from './postfx.js';
-import { createCommentary } from './commentary.js';
-import { createAudio } from './audio.js';
 import { PILLAR_KEYS, createPillar } from './pillars.js';
+import { createCover } from './cover.js';
 import { TCOL, createTerminal } from './terminal.js';
 import { createReporter } from './reporter.js';
 import { createLiveReport, primeSpeech } from './livereport.js';
@@ -73,8 +72,10 @@ ctx.camera = rig.camera;
 const hud = createHud({ match });
 const postfx = createPostFX(ctx, { camera: rig.camera });
 const input = createInput();
-const commentary = createCommentary({ match, rng: makeRng(SEED ^ 0x9e37) });
-const audio = createAudio({ match, rng: makeRng(SEED ^ 0x51ab) });
+// crowd ambience + the (French) commentary voicelines are OFF — only the Cartesia
+// report narration should speak. No-op stubs keep the rest of the interface intact.
+const commentary = { update() {}, toggleMute() {}, muted: true };
+const audio = { update() {}, toggleMute() {}, muted: true };
 
 rig.setMode(CAM_MODE);
 
@@ -82,7 +83,8 @@ window.__APP = { scene, renderer, ball, teams, match, rig, commentary, audio, TH
 
 // --- Empty field view: the stadium + pitch, every player and the ball removed,
 // with free orbit navigation (drag to rotate · scroll to zoom). ---
-const OVERVIEW = { az: Math.PI, pol: 0.26, r: 105, x: 0, y: 3, z: 0 };
+// the landing-page angle — ⤢ OVERVIEW returns to exactly this (inside the bowl)
+const OVERVIEW = { az: -1.592, pol: 0.233, r: 96.2, x: 44, y: 3, z: 0 };
 const nav = {
   az: OVERVIEW.az, pol: OVERVIEW.pol, r: OVERVIEW.r,          // current orbit
   taz: OVERVIEW.az, tpol: OVERVIEW.pol, tr: OVERVIEW.r,       // desired orbit
@@ -179,7 +181,7 @@ function buildNavUI() {
   document.getElementById('pw-next').addEventListener('click', () => { focusBoard(cur() + 1); hideMenu(); });
   document.getElementById('pw-auto').addEventListener('click', activateAuto);
   document.getElementById('pw-logs').addEventListener('click', activateLogs);
-  document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); deactivateReport(); deactivateHistory(); deactivateScore(); deactivateAuto(); deactivateLogs(); if (window.__pwShowMenu) window.__pwShowMenu(); });
+  document.getElementById('pw-over').addEventListener('click', () => { overview(); deactivateTerminal(); deactivateReport(); deactivateHistory(); deactivateScore(); deactivateAuto(); deactivateLogs(); deactivateOnboard(); if (window.__pwTxrClose && txrActive) { txrDeactivate(); } if (window.__pwShowMenu) window.__pwShowMenu(); });
   document.getElementById('pw-full').addEventListener('click', () => {
     const d = document.documentElement;
     if (document.fullscreenElement) document.exitFullscreen();
@@ -200,7 +202,10 @@ function activateTerminal() {
   if (window.__pwHideMenu) window.__pwHideMenu();
   if (window.__pwShowTermBar) window.__pwShowTermBar();
   terminal.clear();
-  terminal.write('just start typing — Enter runs it, Esc exits', TCOL.DIM);
+  terminal.write('● HARBOURSIDE AGENT — ON DUTY', TCOL.VOLT);
+  terminal.write('onboarded · policies loaded · memory live', TCOL.DIM);
+  terminal.write('watching transfers · payables · receivables · wages · agent fees · clauses', TCOL.WHITE);
+  terminal.write('working alongside you — hand me anything ▸', TCOL.BLUE);
 }
 function deactivateTerminal() {
   const m = scene.getObjectByName('big_screen_' + TERM_SCREEN);
@@ -229,11 +234,274 @@ function deactivateReport() {
   if (m && pillars[REPORT_SCREEN]) { m.material.map = pillars[REPORT_SCREEN].texture; m.material.needsUpdate = true; }
   reportActive = false;
   if (reportPlayer) reportPlayer.stop();
+  try { if (reportVideoEl) reportVideoEl.pause(); } catch (e) {}   // also stop the billboard video
+  _duckAmbience(false);                                           // and un-mute the crowd
   if (window.__pwReportHide) window.__pwReportHide();
 }
 window.__pwActivateReport = activateReport;
 window.__pwReportFinancial = () => activateReport('financial');
 window.__pwDeactivateReport = deactivateReport;
+
+// --- Transaction report IN-STADIUM: click a History topic → fly to the report
+//     billboard, read it there, talk to the agent, download it — no browser tab. ---
+let txrScenes = [], txrIdx = 0, txrWi = null, txrActive = false, txrReturn = null;
+// fly to the REPORT billboard + open the report HUD (shared by History + the terminal)
+function _reportBoardSetup(title, wi, back) {
+  if (!reporter) return false;
+  txrWi = wi || null; txrActive = true; txrReturn = back || null;
+  if (reportPlayer) { try { reportPlayer.stop(); } catch (e) { /* idle */ } }
+  const m = scene.getObjectByName('big_screen_' + REPORT_SCREEN);
+  if (m) { m.material.map = reporter.texture; m.material.needsUpdate = true; }
+  reportActive = true;
+  focusBoard(REPORT_SCREEN);
+  if (window.__pwHideHistBar) window.__pwHideHistBar();
+  if (window.__pwHideMenu) window.__pwHideMenu();
+  if (window.__pwHideTermBar) window.__pwHideTermBar();
+  reporter.setTitle(title || 'report');
+  if (window.__pwShowTxrBar) window.__pwShowTxrBar(title || 'report');
+  return true;
+}
+function _renderScenes(scenes, title) {
+  txrScenes = (scenes && scenes.length) ? scenes : [{ say: 'No report.', draw: null }];
+  txrIdx = 0;
+  reporter.setTitle(title || txrWi || 'report');
+  reporter.showScene(txrScenes[0], 0, txrScenes.length, { build: true });
+  if (window.__pwTxrLabel) window.__pwTxrLabel(title || txrWi || 'report', 1, txrScenes.length);
+}
+async function txReport(wi) {
+  if (!_reportBoardSetup(wi, wi, () => { if (window.__pwActivateHistory) window.__pwActivateHistory(); })) return;
+  reporter.idle('loading the transaction report…');
+  let plan = { scenes: [] }, audit = [];
+  try {
+    [plan, audit] = await Promise.all([
+      fetch('/api/explain/' + encodeURIComponent(wi)).then((r) => r.json()),
+      fetch('/api/audit/' + encodeURIComponent(wi)).then((r) => r.json())]);
+  } catch (e) { /* offline */ }
+  if (!txrActive || txrWi !== wi) return;
+  const scenes = (plan.scenes || []).slice();
+  const A = Array.isArray(audit) ? audit : [];
+  // top up with scenes synthesized from the audit so every report has substance (we aim
+  // for ≥3 content scenes, then the audit trail as the final slide ⇒ at least 4 total)
+  if (A.length) {
+    const isHuman = (a) => a && /:/.test(a) && !/ai_agent|gateway|sync|policy|retrieval|system/.test(a);
+    const create = A.find((r) => r.action === 'create');
+    const prop = A.find((r) => r.action === 'propose');
+    const human = A.filter((r) => isHuman(r.actor)).pop();
+    const verdict = A.filter((r) => ['post', 'hold', 'reject', 'approve', 'ask', 'correct'].indexOf(r.action) >= 0).pop() || A[A.length - 1];
+    const synth = [
+      { say: 'The case — ' + (plan.title || wi) + ((create && create.reason) ? ' (' + create.reason + ')' : '') + '.',
+        draw: { type: 'flow', title: 'the case', boxes: ['received', 'under review'] } },
+      { say: (prop && prop.reason) || 'The agent assessed the case and proposed a treatment.',
+        draw: { type: 'flow', title: 'what the agent found', boxes: ['assessed', 'proposed'] } },
+      { say: (verdict && verdict.reason) || 'The decision was recorded.',
+        draw: { type: 'flow', title: 'the call',
+          boxes: [(verdict && (verdict.state || verdict.action)) || 'decided', human ? ('you ▸ ' + (human.action || 'reviewed')) : 'logged'] } },
+    ];
+    while (scenes.length < 3 && synth.length) scenes.push(synth.shift());
+  }
+  // final slide: the append-only audit trail
+  if (A.length) {
+    scenes.push({ say: 'Append-only audit trail — logged, and never editable.',
+      draw: { type: 'table', title: 'append-only audit trail',
+        columns: ['time', 'actor', 'action', 'why'],
+        rows: A.map((r) => [r.at || '', r.actor || '', (r.action || '') + (r.allowed === false ? ' ✗' : ''), (r.reason || '').slice(0, 42)]) } });
+  }
+  _renderScenes(scenes.length ? scenes : [{ say: 'No detailed record for ' + wi + '.', draw: null }], plan.title || wi);
+}
+// the Teamwork-Terminal FULL REPORT → the captured scenario trace, on the billboard
+function _scenarioScenes(trace) {
+  const steps = trace.steps || [], scenes = [];
+  scenes.push({ say: '“' + (trace.text || '') + '”',
+    draw: { type: 'flow', title: 'scenario', boxes: ['you asked', 'the agent works it'] } });
+  steps.filter((s) => s.kind === 'think' || s.kind === 'recall').slice(0, 6).forEach((s) =>
+    scenes.push({ say: (s.kind === 'recall' ? 'recalled memory · ' : '') + (s.text || ''), draw: null }));
+  for (let i = 0; i < steps.length; i++) {
+    if (steps[i].kind !== 'run_sql') continue;
+    let res = null;
+    for (let j = i + 1; j < steps.length; j++) { if (steps[j].kind === 'sql_result') { res = steps[j].data || {}; break; } if (steps[j].kind === 'run_sql') break; }
+    const rows = (res && res.rows) || [], cols = (res && res.columns) || (rows[0] ? Object.keys(rows[0]) : []);
+    scenes.push({ say: 'queried the database — ' + rows.length + ' row' + (rows.length === 1 ? '' : 's') + ' pulled',
+      draw: rows.length ? { type: 'table', title: (steps[i].text || '').slice(0, 56),
+        columns: cols.slice(0, 4), rows: rows.slice(0, 8).map((r) => cols.slice(0, 4).map((c) => String(r[c]))) } : null });
+  }
+  const prop = steps.filter((s) => s.kind === 'propose').pop();
+  const post = steps.filter((s) => s.kind === 'post').pop();
+  const ah = steps.filter((s) => s.kind === 'await_human').pop();
+  if (prop || post || ah) {
+    let say = prop ? (prop.text || (prop.data || {}).reason || '') : '';
+    if (post) say += ' → ' + ((post.data || {}).final || (post.data || {}).action || '');
+    if (ah) say = (ah.data || {}).question || say;
+    const jl = post && (post.data || {}).journal_lines;
+    const draw = (jl && jl.length)
+      ? { type: 'table', title: 'the money note it posted', columns: ['account', 'debit', 'credit'],
+          rows: jl.map((l) => [String(l.account || l.code || ''), l.debit ? String(l.debit) : '', l.credit ? String(l.credit) : '']) }
+      : { type: 'flow', title: 'verdict', boxes: [(prop && (prop.data || {}).situation_type) || 'classified', (post && (post.data || {}).final) || (ah ? 'asked a human' : 'escalated')] };
+    scenes.push({ say, draw });
+  }
+  return scenes;
+}
+function scnReportBoard(trace) {
+  if (!trace || !trace.steps || !trace.steps.length) return;
+  _reportBoardSetup('scenario · ' + (trace.wi || ''), trace.wi, () => activateTerminal());
+  _renderScenes(_scenarioScenes(trace), 'scenario report');
+}
+window.__pwScnReportBoard = scnReportBoard;
+// open a saved Teamwork-Terminal run on the billboard by id (History → "on billboard")
+async function scnReportBoardByWi(wi) {
+  let d = null;
+  try { d = await fetch('/api/scenario/trace/' + encodeURIComponent(wi)).then((r) => r.json()); } catch (e) { /* offline */ }
+  if (d && d.found && d.steps && d.steps.length) { scnReportBoard({ text: d.text, at: d.at, wi: d.wi, steps: d.steps }); return; }
+  txReport(wi);   // older run with no saved trace → fall back to the generic report
+}
+window.__pwScnReportBoardByWi = scnReportBoardByWi;
+function txrStep(d) {
+  if (!txrActive || !txrScenes.length) return;
+  txrIdx = ((txrIdx + d) % txrScenes.length + txrScenes.length) % txrScenes.length;
+  reporter.showScene(txrScenes[txrIdx], txrIdx, txrScenes.length, { build: true });
+  if (window.__pwTxrLabel) window.__pwTxrLabel(txrWi, txrIdx + 1, txrScenes.length);
+}
+function txrDeactivate() {
+  txrStop();
+  const m = scene.getObjectByName('big_screen_' + REPORT_SCREEN);
+  if (m && pillars[REPORT_SCREEN]) { m.material.map = pillars[REPORT_SCREEN].texture; m.material.needsUpdate = true; }
+  reportActive = false; txrActive = false;
+  if (window.__pwHideTxrBar) window.__pwHideTxrBar();
+}
+function txrDownload() {
+  const out = ['# Pit Wall — Transaction Report', '', '**' + (txrWi || '') + '**', ''];
+  txrScenes.forEach((s, i) => {
+    if (s.say) out.push((i + 1) + '. ' + s.say);
+    const d = s.draw;
+    if (d && d.type === 'table') {
+      out.push(''); out.push('| ' + (d.columns || []).join(' | ') + ' |');
+      out.push('|' + (d.columns || []).map(() => '---').join('|') + '|');
+      (d.rows || []).forEach((r) => out.push('| ' + r.join(' | ') + ' |'));
+    } else if (d && (d.lines || d.items)) {
+      (d.lines || d.items || []).forEach((l) => out.push('   - ' + (l.label || l)));
+    }
+    out.push('');
+  });
+  const blob = new Blob([out.join('\n')], { type: 'text/markdown' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'pitwall-' + (txrWi || 'report') + '.md';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+async function txrAsk(q) {
+  if (!txrActive || !q) return;
+  if (window.__pwTxrAnswer) window.__pwTxrAnswer('thinking…', true);
+  try {
+    const r = await fetch('/api/ask?' + new URLSearchParams({ wi: txrWi, q }).toString(), { method: 'POST' }).then((x) => x.json());
+    if (window.__pwTxrAnswer) window.__pwTxrAnswer((r && r.answer) || '(no answer)', false);
+  } catch (e) { if (window.__pwTxrAnswer) window.__pwTxrAnswer('(backend offline)', false); }
+}
+// speak + AUTOPLAY the report on the billboard (Cartesia voice → browser fallback),
+// auto-advancing each scene as it finishes being read out loud
+let txrPlaying = false, txrAudio = null, txrCart = true;
+function _speak(text) {
+  return new Promise((res) => {
+    const tt = String(text || '').trim(); if (!tt) { res(); return; }
+    const browser = () => { try { const u = new SpeechSynthesisUtterance(tt); u.onend = res; u.onerror = res; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) { res(); } };
+    if (!txrCart) { browser(); return; }
+    fetch('/api/voice?text=' + encodeURIComponent(tt)).then((r) => {
+      if (r.status === 404) { txrCart = false; browser(); return; }
+      if (!r.ok) { browser(); return; }
+      r.blob().then((b) => {
+        if (!txrAudio) txrAudio = new Audio();
+        const u = URL.createObjectURL(b); txrAudio.src = u;
+        const done = () => { try { URL.revokeObjectURL(u); } catch (e) { /* */ } res(); };
+        txrAudio.onended = done; txrAudio.onerror = done; txrAudio.play().catch(done);
+      }).catch(browser);
+    }).catch(browser);
+  });
+}
+async function txrPlay() {
+  if (!txrActive || txrPlaying) return;
+  txrPlaying = true; if (window.__pwTxrPlaying) window.__pwTxrPlaying(true);
+  for (let i = txrIdx; i < txrScenes.length && txrPlaying && txrActive; i++) {
+    txrIdx = i;
+    reporter.showScene(txrScenes[i], i, txrScenes.length, { build: true });
+    if (window.__pwTxrLabel) window.__pwTxrLabel(txrWi, i + 1, txrScenes.length);
+    await _speak(txrScenes[i].say);
+    if (!txrPlaying || !txrActive) break;
+    await new Promise((r) => setTimeout(r, 450));
+  }
+  txrPlaying = false; if (window.__pwTxrPlaying) window.__pwTxrPlaying(false);
+}
+function txrStop() { txrPlaying = false; try { if (txrAudio) txrAudio.pause(); } catch (e) { /* */ } try { speechSynthesis.cancel(); } catch (e) { /* */ } if (window.__pwTxrPlaying) window.__pwTxrPlaying(false); }
+window.__pwTxrPlay = () => { if (txrPlaying) txrStop(); else txrPlay(); };
+window.__pwTxReport = txReport;
+window.__pwTxrStep = txrStep;
+window.__pwTxrDownload = txrDownload;
+window.__pwTxrAsk = txrAsk;
+window.__pwTxrClose = () => { txrStop(); const back = txrReturn; txrDeactivate(); if (back) back(); else { overview(); if (window.__pwShowMenu) window.__pwShowMenu(); } };
+
+// --- play the rendered report MP4 directly ON the billboard (as a video texture) ---
+let reportVideoEl = null, reportVideoTex = null, _ambienceDucked = false;
+function _duckAmbience(on) {
+  try {
+    if (on && !_ambienceDucked) {
+      if (audio && audio.toggleMute && !audio.muted) audio.toggleMute();
+      if (commentary && commentary.toggleMute && !commentary.muted) commentary.toggleMute();
+      _ambienceDucked = true;
+    } else if (!on && _ambienceDucked) {
+      if (audio && audio.toggleMute && audio.muted) audio.toggleMute();
+      if (commentary && commentary.toggleMute && commentary.muted) commentary.toggleMute();
+      _ambienceDucked = false;
+    }
+  } catch (e) { /* ambience ducking is best-effort */ }
+}
+function activateReportVideo() {
+  const m = scene.getObjectByName('big_screen_' + REPORT_SCREEN);
+  if (!m) return;
+  reportActive = true;
+  focusBoard(REPORT_SCREEN);
+  if (window.__pwHideMenu) window.__pwHideMenu();
+  // a loading frame while the server renders the mp4 (~40s the first time, cached after)
+  if (reporter) {
+    m.material.map = reporter.texture; m.material.needsUpdate = true;
+    reporter.setTitle('financial report · video');
+    reporter.idle('rendering the report video on the server…  (~40s first time, instant after)');
+  }
+  if (!reportVideoEl) {
+    reportVideoEl = document.createElement('video');
+    reportVideoEl.crossOrigin = 'anonymous';
+    reportVideoEl.playsInline = true; reportVideoEl.setAttribute('playsinline', '');
+    reportVideoEl.preload = 'auto';
+    Object.assign(reportVideoEl.style, { position: 'fixed', left: '-20px', top: '-20px',
+      width: '2px', height: '2px', opacity: '0', pointerEvents: 'none' });
+    document.body.appendChild(reportVideoEl);
+    reportVideoTex = new THREE.VideoTexture(reportVideoEl);
+    reportVideoTex.colorSpace = THREE.SRGBColorSpace;
+    reportVideoTex.minFilter = THREE.LinearFilter; reportVideoTex.magFilter = THREE.LinearFilter;
+    reportVideoTex.generateMipmaps = false;
+    reportVideoEl.addEventListener('playing', () => {
+      const mm = scene.getObjectByName('big_screen_' + REPORT_SCREEN);
+      if (mm && reportActive) { mm.material.map = reportVideoTex; mm.material.needsUpdate = true; }
+      _duckAmbience(true);
+    });
+    reportVideoEl.addEventListener('error', () => {
+      if (reporter && reportActive) reporter.idle('could not render the video — is `make fc` running?');
+    });
+  }
+  reportVideoEl.src = '/api/report-video';
+  try { reportVideoEl.currentTime = 0; } catch (e) {}
+  reportVideoEl.muted = false; reportVideoEl.volume = 1.0;
+  const p = reportVideoEl.play();
+  if (p && p.catch) p.catch(() => {            // autoplay-with-sound refused → start muted, then unmute
+    reportVideoEl.muted = true;
+    reportVideoEl.play().then(() => { reportVideoEl.muted = false; }).catch(() => {});
+  });
+}
+function deactivateReportVideo() {
+  const m = scene.getObjectByName('big_screen_' + REPORT_SCREEN);
+  if (m && pillars[REPORT_SCREEN]) { m.material.map = pillars[REPORT_SCREEN].texture; m.material.needsUpdate = true; }
+  reportActive = false;
+  _duckAmbience(false);
+  try { if (reportVideoEl) reportVideoEl.pause(); } catch (e) {}
+}
+window.__pwReportVideo = activateReportVideo;
+window.__pwDeactivateReportVideo = deactivateReportVideo;
 
 // --- Transaction history: step the chain of events (audit + reasoning + evidence) ---
 let historyReporter = null, historyEvents = [], histIdx = 0, historyActive = false;
@@ -254,9 +522,13 @@ async function activateHistory() {
   focusBoard(HISTORY_SCREEN);
   if (window.__pwHideMenu) window.__pwHideMenu();
   if (window.__pwShowHistBar) window.__pwShowHistBar();
-  historyReporter.idle('loading transaction history…');
+  historyReporter.idle('loading history…');
   try { historyEvents = (await fetch('/api/history').then((r) => r.json())).events || []; }
   catch (e) { historyEvents = []; }
+  // the topic rail = one entry per transaction (the head events), each opening its report
+  const topics = [];
+  historyEvents.forEach((e, i) => { if (e.head) topics.push({ wi: e.wi, title: e.title, meta: e.meta, idx: i }); });
+  if (window.__pwHistTopics) window.__pwHistTopics(topics);
   histIdx = 0; showHistEvent(0);
 }
 function deactivateHistory() {
@@ -403,7 +675,120 @@ function deactivateLogs() {
 }
 window.__pwActivateLogs = activateLogs;
 window.__pwDeactivateLogs = deactivateLogs;
+
+// --- ONBOARD: a fresh agent learns the accounting policies, live as a trail of
+//     thought on a billboard; a human approves; the audit trail lands on the same
+//     screen. Reuses the terminal-billboard mechanism (was the score screen). ---
+let onboardTerm = null, onboardActive = false, onboardES = null, onboardCfg = null, onboardTrail = null, onboardDone = false;
+const ONBOARD_SCREEN = 3;   // the billboard the onboarding takes over
+function owrite(t, c) { if (onboardTerm) onboardTerm.write(t, c); }
+function activateOnboard(config) {
+  if (!onboardTerm) return;
+  onboardCfg = config || {};
+  const m = scene.getObjectByName('big_screen_' + ONBOARD_SCREEN);
+  if (m) { m.material.map = onboardTerm.texture; m.material.needsUpdate = true; }
+  onboardActive = true; onboardDone = false;
+  onboardTrail = { sqlQuery: '', sqlResult: '', patterns: [], policies: [], think: [], gap: '' };
+  if (window.__pwHideMenu) window.__pwHideMenu();
+  overview();                                 // land back on the OVERVIEW angle; the board glows
+  if (window.__pwShowOnboardBar) window.__pwShowOnboardBar(false);
+  onboardTerm.clear();
+  owrite('▸ ONBOARDING — ' + (onboardCfg.agent || 'new agent'), TCOL.VOLT);
+  owrite('reading how Harbourside FC has booked things…', TCOL.DIM);
+  startOnboardStream();
+}
+function startOnboardStream() {
+  if (onboardES) onboardES.close();
+  const p = new URLSearchParams();
+  if (onboardCfg.agent) p.set('agent', onboardCfg.agent);
+  if (onboardCfg.roles && onboardCfg.roles.length) p.set('roles', onboardCfg.roles.join(','));
+  if (onboardCfg.use_llm === true) p.set('use_llm', '1');
+  else if (onboardCfg.use_llm === false) p.set('use_llm', '0');
+  onboardES = new EventSource('/api/agent/onboard/stream?' + p.toString());
+  onboardES.onmessage = (e) => {
+    const s = JSON.parse(e.data), k = s.kind;
+    // capture the trail so the approval panel can show the reasoning + the tables
+    if (onboardTrail) {
+      if (k === 'think') onboardTrail.think.push(s.text);
+      else if (k === 'run_sql') onboardTrail.sqlQuery = s.text;
+      else if (k === 'sql_result') onboardTrail.sqlResult = s.text;
+      else if (k === 'pattern') onboardTrail.patterns.push({ name: s.name, evidence: s.evidence, covers: s.covers });
+      else if (k === 'policy') onboardTrail.policies.push({ name: s.name, why: s.why, treatment: s.treatment, evidence: s.evidence, covers: s.covers });
+      else if (k === 'gap') onboardTrail.gap = s.text;
+    }
+    if (k === 'onboard_start') { /* header already written */ }
+    else if (k === 'think') { owrite('ai_agent think', TCOL.VOLT); owrite('  ' + s.text, TCOL.WHITE); }
+    else if (k === 'run_sql') { owrite('ai_agent mine_history', TCOL.VOLT); owrite('  ' + s.text, TCOL.AMBER); }
+    else if (k === 'sql_result') owrite('  ' + (s.text || ''), TCOL.DIM);
+    else if (k === 'pattern') owrite('  · ' + (s.name || '') + ' — ' + (s.evidence || 0) + ' records', TCOL.AMBER);
+    else if (k === 'policy') {
+      owrite('✓ learned · ' + (s.name || '') + '  (' + (s.evidence || 0) + ' records)', TCOL.BLUE);
+      if (s.why) owrite('   ' + s.why, TCOL.DIM);
+    } else if (k === 'gap') owrite('⚠ ' + s.text, TCOL.AMBER);
+    else if (k === 'propose') owrite('▸ ' + s.text, TCOL.VOLT);
+    else if (k === 'await_approval') {
+      owrite('▸ awaiting a human to approve — open the approval panel', TCOL.VOLT);
+      if (window.__pwOnboardTrail) window.__pwOnboardTrail(onboardTrail);
+      if (window.__pwShowOnboardBar) window.__pwShowOnboardBar(true);
+      if (window.__pwOnboardReady) window.__pwOnboardReady();
+    } else if (k === 'error') owrite('✗ ' + s.text, TCOL.RED);
+    else if (k === 'done') onboardES.close();
+  };
+  onboardES.onerror = () => { onboardES.close(); owrite('(backend offline — run make fc)', TCOL.RED); };
+}
+function deactivateOnboard() {
+  const m = scene.getObjectByName('big_screen_' + ONBOARD_SCREEN);
+  if (m && pillars[ONBOARD_SCREEN]) { m.material.map = pillars[ONBOARD_SCREEN].texture; m.material.needsUpdate = true; }
+  onboardActive = false; onboardDone = false;
+  if (onboardES) { onboardES.close(); onboardES = null; }
+  overview();
+  if (window.__pwHideOnboardBar) window.__pwHideOnboardBar();
+}
+// after the human signs off (from the HTML approval screen): glide to the board,
+// stamp the approval audit trail onto the same terminal, and CONCLUDE — the policies
+// + context are now in long-term memory (Tiger + Moss), so the board rests on its
+// final state (it does NOT fall back to the default pillar).
+async function onboardApproved(trail, by, indexed) {
+  if (!onboardActive) return;
+  focusBoard(ONBOARD_SCREEN);                 // smooth transition to the billboard
+  owrite('', TCOL.DIM);
+  owrite('✓ POLICIES APPROVED · ' + (by || 'controller'), TCOL.VOLT);
+  (trail || []).forEach((r) => {
+    const sub = (r.subject || '').replace('policy:', '');
+    owrite('  ' + (r.at || '') + '  ' + (r.actor || '') + '  ' + (r.action || '') + '  ' + sub, TCOL.BLUE);
+  });
+  owrite('▸ policies are now ACTIVE — the agent can auto-post these treatments', TCOL.VOLT);
+  owrite('▸ saved to long-term memory · Tiger + Moss (' + (indexed || 0) + ' indexed)', TCOL.VOLT);
+  owrite('▸ the Teamwork Terminal will recall this context from now on', TCOL.BLUE);
+  try { await fetch('/api/agent/mode?mode=onboarded', { method: 'POST' }); } catch (e) { /* offline */ }
+  if (onboardES) { onboardES.close(); onboardES = null; }   // the trail is finished
+  onboardDone = true;
+  if (window.__pwOnboardDone) window.__pwOnboardDone(indexed || 0);   // bar → "complete"
+}
+// leave the onboarding board on its final state and fly to the Teamwork Terminal
+function gotoControl() { deactivateOnboard(); activateTerminal(); }
+// re-entry from the Onboard card: if an onboarding is in progress / just concluded,
+// resume it on the board instead of starting over; otherwise open the config panel
+function onboardEntry() {
+  if (onboardActive) {
+    if (window.__pwHideMenu) window.__pwHideMenu();
+    focusBoard(ONBOARD_SCREEN);
+    if (onboardDone) { if (window.__pwOnboardDone) window.__pwOnboardDone(); }
+    else if (window.__pwShowOnboardBar) window.__pwShowOnboardBar(true);
+    return;
+  }
+  if (window.__pwOpenRoster) window.__pwOpenRoster();            // list onboarded agents + "create new"
+  else if (window.__pwOpenOnboardCfg) window.__pwOpenOnboardCfg();
+}
+window.__pwActivateOnboard = activateOnboard;
+window.__pwDeactivateOnboard = deactivateOnboard;
+window.__pwOnboardFocus = () => { if (onboardActive) focusBoard(ONBOARD_SCREEN); };
+window.__pwOnboardApproved = onboardApproved;
+window.__pwGotoControl = gotoControl;
+window.__pwOnboardEntry = onboardEntry;
+
 window.__pwHistStep = (d) => { if (historyActive) showHistEvent(histIdx + d); };
+window.__pwHistGo = (i) => { if (historyActive) showHistEvent(i); };   // topic rail → jump the board
 // ← → step the chain while history is open (and nothing else sees the keys)
 window.addEventListener('keydown', (e) => {
   if (!historyActive) return;
@@ -442,9 +827,12 @@ window.__pwRunTerm = function (text) {
   }
   terminal.clear();
   terminal.write('> ' + text, TCOL.WHITE);
+  scnTrace = { text: text, at: new Date().toISOString(), steps: [], wi: null };
+  if (window.__pwShowScnReport) window.__pwShowScnReport(false);   // hide until this run finishes
   const es = new EventSource('/api/scenario/stream?text=' + encodeURIComponent(text));
   es.onmessage = (e) => {
     const s = JSON.parse(e.data), k = s.kind;
+    if (k !== 'done' && scnTrace) { scnTrace.steps.push(s); if (s.data && s.data.wi) scnTrace.wi = s.data.wi; }
     if (k === 'think') { terminal.write('ai_agent think', TCOL.VOLT); terminal.write('  ' + s.text, TCOL.WHITE); }
     else if (k === 'recall') terminal.write('ai_agent recall_memory ▸ ' + s.text, TCOL.VOLT);
     else if (k === 'run_sql') { terminal.write('ai_agent run_sql', TCOL.VOLT); terminal.write('  ' + s.text, TCOL.AMBER); }
@@ -454,10 +842,51 @@ window.__pwRunTerm = function (text) {
     else if (k === 'escalate') terminal.write('▸ ' + s.text, TCOL.AMBER);
     else if (k === 'forecast') { const im = (s.data || {}).impact; if (im && im.line) terminal.write('forecast ▸ ' + im.line, TCOL.VOLT); }
     else if (k === 'report') { terminal.write('report ▸ ● ON AIR', TCOL.VOLT); if (window.__pwBroadcast) window.__pwBroadcast(s.text); }
+    else if (k === 'clause_report') { const d = s.data || {};
+      terminal.write('🔬 clause-analyst subagent ▸ ' + (d.summary || 'analysed the clause'), TCOL.BLUE);
+      if (d.recommendation) terminal.write('   recommends: ' + d.recommendation, TCOL.WHITE); }
+    else if (k === 'await_human') { const d = s.data || {}; hitlCtx = d;
+      terminal.write('ai_agent ▸ needs a human decision — I won’t guess', TCOL.AMBER);
+      if (d.question) terminal.write('  ' + d.question, TCOL.WHITE);
+      if (window.__pwShowHITL) window.__pwShowHITL(d); }
     else if (k === 'error') terminal.write('✗ ' + s.text, TCOL.RED);
-    else if (k === 'done') es.close();
+    else if (k === 'done') { es.close(); if (scnTrace && scnTrace.steps.length && window.__pwShowScnReport) window.__pwShowScnReport(true); }
   };
   es.onerror = () => { es.close(); terminal.write('(backend offline — run make fc)', TCOL.RED); };
+};
+// FULL REPORT: hand the captured trace to a new window (via localStorage, same-origin)
+let scnTrace = null;
+window.__pwOpenScnReport = function () {
+  if (!scnTrace || !scnTrace.steps.length) return;
+  if (window.__pwScnReportBoard) window.__pwScnReportBoard(scnTrace);   // on a billboard, not a new tab
+};
+// HUMAN-IN-THE-LOOP: the human's decision (from the HITL bar) → record + apply + learn,
+// and show what the agent learned right in the terminal (HITL goes down over time).
+let hitlCtx = null;
+window.__pwResolveHITL = async function (decision) {
+  if (!hitlCtx || !decision) return;
+  const d = hitlCtx; hitlCtx = null;
+  if (window.__pwHideHITL) window.__pwHideHITL();
+  terminal.write('you (accounting team) ▸ ' + decision, TCOL.BLUE);
+  try {
+    const p = new URLSearchParams({ wi: d.wi || '', situation: d.situation || '',
+      decision: decision, role: 'human_accountant' });
+    const r = await fetch('/api/scenario/resolve?' + p.toString(), { method: 'POST' }).then((x) => x.json());
+    if (r.precedent) terminal.write('✓ recorded your call as a precedent · ' + r.precedent, TCOL.VOLT);
+    const L = r.learned || {}, n = L.count, pl = (n === 1 ? ' precedent' : ' precedents');
+    if (L.status === 'approved')
+      terminal.write('✓ learned — generalized ' + L.policy + ' from ' + n + pl + ' of the team’s calls: I won’t need to ask next time', TCOL.VOLT);
+    else if (L.status === 'already_active')
+      terminal.write('✓ already have a rule for this (' + L.policy + ') — leaning on it', TCOL.VOLT);
+    else if (L.status === 'rejected')
+      terminal.write('↩ proposed a rule from ' + n + pl + ' — ' + (L.reason || 'the team wants more evidence first'), TCOL.AMBER);
+    else if (L.status === 'waiting')
+      terminal.write('• ' + n + pl + ' on file so far — ' + (L.reason || 'I’ll propose a rule once there are enough alike'), TCOL.DIM);
+    else if (L.status === 'no_template')
+      terminal.write('• recorded to memory — this one stays a human call', TCOL.DIM);
+    else
+      terminal.write('• decision recorded to memory', TCOL.DIM);
+  } catch (e) { terminal.write('(resolve failed — backend offline?)', TCOL.RED); }
 };
 // type straight into the billboard: while the terminal is live, keystrokes build the
 // on-board prompt and nothing else in the scene sees them (capture phase + stop).
@@ -466,6 +895,8 @@ window.__pwSetTermPrompt = (t) => { termBuf = String(t == null ? '' : t); syncPr
 window.__pwSubmitTerm = () => { const v = termBuf.trim(); termBuf = ''; syncPrompt(); if (v) window.__pwRunTerm(v); };
 window.addEventListener('keydown', (e) => {
   if (!termActive) return;
+  const tgt = e.target;                                  // don't hijack real input fields (HITL bar, etc.)
+  if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.isContentEditable)) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;        // leave shortcuts / paste alone
   const k = e.key;
   if (k === 'Enter') window.__pwSubmitTerm();
@@ -475,6 +906,16 @@ window.addEventListener('keydown', (e) => {
   else return;                                            // arrows, F-keys, etc. — ignore
   e.preventDefault(); e.stopImmediatePropagation();
 }, true);
+// paste straight onto the board (Cmd/Ctrl-V) — the keydown handler ignores modifier
+// keys, so the paste event is where clipboard text actually lands.
+window.addEventListener('paste', (e) => {
+  if (!termActive) return;
+  const tgt = e.target;
+  if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.isContentEditable)) return;
+  const txt = ((e.clipboardData || window.clipboardData) || {}).getData
+    ? (e.clipboardData || window.clipboardData).getData('text') : '';
+  if (txt) { termBuf += txt.replace(/\s*\n\s*/g, ' ').trim(); syncPrompt(); e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
 
 function setupField() {
   // full match playing in the background (all 22 + referee)
@@ -483,22 +924,40 @@ function setupField() {
   const hudEl = document.getElementById('hud');
   if (hudEl) hudEl.style.display = 'none';                // no scoreboard overlay
   // A DIFFERENT Pit Wall pillar on each big LED screen, live from :4055
+  // The DEFAULT face of each billboard — a meaningful "what this board is" cover
+  // (not a repeated slide). Indexed by screen: #1 Onboarding, #2 History, and four
+  // useful boards. The `no` watermark reflects priority, not the raw screen index.
+  const COVERS = [
+    /* 0 TERM    */ { no: '03', title: 'TEAMWORK TERMINAL', badge: 'THE AGENT + YOU', hint: 'open from “Control room” ▸',
+                      sub: 'Type a finance scenario — it recalls the policies it learned, decides, and posts with you.' },
+    /* 1 REPORT  */ { no: '04', title: 'THE BOOKS', badge: 'DOUBLE-ENTRY', hint: 'the narrated financial report ▸',
+                      sub: 'Trial balance that ties · P&L · squad-cost ratio — every figure a posted journal entry.' },
+    /* 2 HISTORY */ { no: '02', title: 'HISTORY', badge: 'APPEND-ONLY', hint: 'open from “History” ▸',
+                      sub: 'Every decision as a topic — open its full report: the thinking, the evidence, the human input.' },
+    /* 3 ONBOARD */ { no: '01', title: 'ONBOARDING', badge: 'RESERVED', hint: 'click “Onboard” to begin ▸',
+                      sub: 'Reserved for onboarding — a new agent learns the club’s accounting policies, live on this board.' },
+    /* 4 AUTO    */ { no: '05', title: 'AUTONOMOUS RUN', badge: 'NO HUMAN INPUT', hint: '▶ AUTO RUN ▸',
+                      sub: 'The agent works the planted issues unattended — auto-completes the clear ones, escalates the rest.' },
+    /* 5 LOGS    */ { no: '06', title: 'AUDIT LOG', badge: 'EVERY CHANGE', hint: '▤ LOGS ▸',
+                      sub: 'The append-only log — every transition, approval and denial, as it happens. Nothing is editable.' },
+  ];
   pillars = [];
   const n = (stadium.screenViews || []).length;
   for (let i = 0; i < n; i++) {
     const mesh = scene.getObjectByName('big_screen_' + i);
     if (!mesh) continue;
-    const p = createPillar(PILLAR_KEYS[i % PILLAR_KEYS.length]);
-    mesh.material.map = p.texture;
+    const cover = createCover(COVERS[i] || { no: String(i + 1), title: 'PIT WALL', sub: '', hint: '' });
+    mesh.material.map = cover.texture;
     mesh.material.needsUpdate = true;
-    pillars.push(p);
+    pillars[i] = cover;
   }
-  terminal = createTerminal(1024);   // ready to take over a screen on ⌨ SCENARIO
+  terminal = createTerminal(1024, {  // the TEAMWORK terminal — the agent + you, together
+    title: 'PIT WALL ▸ TEAMWORK TERMINAL' });
   reporter = createReporter(1280);   // the finance-report billboard (📺 REPORT)
   reportPlayer = createLiveReport({ reporter });
-  historyReporter = createReporter(1280, {   // the transaction-history billboard
-    heading: 'PIT WALL ▸ TRANSACTION HISTORY', badge: 'APPEND-ONLY AUDIT · EVIDENCE',
-    onair: false, idleHint: 'loading transaction history…' });
+  historyReporter = createReporter(1280, {   // the history billboard
+    heading: 'PIT WALL ▸ HISTORY', badge: 'APPEND-ONLY AUDIT · EVIDENCE',
+    onair: false, idleHint: 'loading history…' });
   scoreReporter = createReporter(1280, {     // the scoreboard billboard
     heading: 'PIT WALL ▸ SCORED VS ANSWER KEY', badge: 'IS IT REAL ENOUGH?',
     onair: false, idleHint: 'scoring…' });
@@ -507,9 +966,12 @@ function setupField() {
     onair: false, idleHint: 'autonomous run…' });
   logsTerminal = createTerminal(1024, {      // the live append-only audit log
     title: 'PIT WALL ▸ AUDIT LOG · APPEND-ONLY', showPrompt: false });
-  // intro framing: the exact angle you picked (press "p" to re-capture)
-  nav.dx = nav.tx = 44; nav.dy = nav.ty = 3; nav.dz = nav.tz = 0;
-  nav.taz = nav.az = -1.592; nav.tpol = nav.pol = 0.233; nav.tr = nav.r = 96.2;
+  onboardTerm = createTerminal(1024, {       // the agent-onboarding trail of thought
+    title: 'PIT WALL ▸ AGENT ONBOARDING', showPrompt: false });
+  // intro framing = the OVERVIEW landing angle (one source of truth, above) so the
+  // ⤢ OVERVIEW button returns to exactly where the page lands
+  nav.dx = nav.tx = OVERVIEW.x; nav.dy = nav.ty = OVERVIEW.y; nav.dz = nav.tz = OVERVIEW.z;
+  nav.taz = nav.az = OVERVIEW.az; nav.tpol = nav.pol = OVERVIEW.pol; nav.tr = nav.r = OVERVIEW.r;
   initNav();
   buildNavUI();
 }
@@ -531,7 +993,8 @@ function frameUpdate(dt) {
   lighting.update(dt);
   if (stadium.update) stadium.update(dt);
   if (pitch.update) pitch.update(dt, match.state);
-  if (FIELD) { updateNav(dt); for (const p of pillars) p.update(dt); if (terminal && termActive) terminal.update(dt); if (reporter && reportActive) reporter.update(dt); if (historyReporter && historyActive) historyReporter.update(dt); if (scoreReporter && scoreActive) scoreReporter.update(dt); if (autoReporter && autoActive) autoReporter.update(dt); if (logsTerminal && logsActive) logsTerminal.update(dt); } else rig.update(dt);
+  if (reportVideoTex && reportVideoEl && !reportVideoEl.paused && reportVideoEl.readyState >= 2) reportVideoTex.needsUpdate = true;
+  if (FIELD) { updateNav(dt); for (const p of pillars) if (p) p.update(dt); if (terminal && termActive) terminal.update(dt); if (reporter && reportActive) reporter.update(dt); if (historyReporter && historyActive) historyReporter.update(dt); if (scoreReporter && scoreActive) scoreReporter.update(dt); if (autoReporter && autoActive) autoReporter.update(dt); if (logsTerminal && logsActive) logsTerminal.update(dt); if (onboardTerm && onboardActive) onboardTerm.update(dt); } else rig.update(dt);
   if (!FIELD) hud.update(dt);
   if (!FIELD) commentary.update(dt); // no voicelines on the empty field
   if (!FIELD) audio.update(dt, ex);  // and no crowd audio

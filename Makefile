@@ -50,11 +50,14 @@ tickets: env ## Load matchday/season ticket sales + forecast snapshots into gold
 payroll: env ## Recalibrate player wages + add managers/coaching staff (payroll, no world-regen)
 	$(UV) run python scripts/seed_payroll.py
 
-reset: env nuke up wait-db migrate generate seed retrieval ## FULL reset: wipe, start, migrate, world, seed, index (LOCAL docker)
+books: env ## Post the general ledger from the system of record (double-entry; idempotent)
+	$(UV) run pitwall books build
+
+reset: env nuke up wait-db migrate generate seed retrieval books ## FULL reset: wipe, start, migrate, world, seed, index, post ledger (LOCAL docker)
 	@echo ""
 	@echo "world reset complete — $$(date)"
 
-cloud-reset: env migrate generate seed retrieval ## Migrate + load world + seed + index against PITWALL_DATABASE_URL (no docker)
+cloud-reset: env migrate generate seed retrieval books ## Migrate + load world + seed + index + post ledger against PITWALL_DATABASE_URL (no docker)
 	@echo ""
 	@echo "cloud reset complete — targeting PITWALL_DATABASE_URL"
 

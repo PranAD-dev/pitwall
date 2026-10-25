@@ -1,13 +1,11 @@
-# Explainer LiveKit agent (classic worker, data-channel) — matches the proven
-# wiring in Steve-Dusty/virtualhelper. The agent uses only livekit-agents core
-# (JobContext / WorkerOptions / cli.run_app / room data channel).
+# Explainer voice worker (voice/agent.py) — plain livekit.rtc publishing a
+# Cartesia-synthesised audio track + the lk.explain-* data channel. No
+# livekit-agents: the worker mints its own token and joins the room directly.
 #   uv pip install -r voice/requirements.txt
-livekit>=1.0.0
-livekit-agents>=0.8.0
+livekit>=1.0.0          # rtc: Room, AudioSource, AudioFrame, LocalAudioTrack
+livekit-api>=1.0.0      # AccessToken / VideoGrants (worker + /api/livekit/token)
+httpx>=0.27             # Cartesia TTS calls (pitwall/explain/tts.py)
 python-dotenv>=1.0.0
 
-# Optional — only if you move speech synthesis server-side (else the frontend
-# speaks each scene via the browser / Cartesia):
-# livekit-plugins-cartesia
-
-# The token backend is Node (see backend/):  cd backend && npm install && npm start
+# The browser plays the worker's audio track (LiveKit) or the /api/voice mp3
+# fallback (also Cartesia); both keep the Cartesia key server-side.

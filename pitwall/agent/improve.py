@@ -39,6 +39,38 @@ IMPROVE_DRAFTS = {
                 "cent → split one-to-many across those invoices (learned from accountant corrections).",
         "rule": {"when": "one_wire", "requires": "reconciles_to_cent", "then": "split_one_to_many"},
     },
+    # learned from Teamwork-Terminal HITL — once the controller/accountant has made the
+    # same call ≥3 times, the agent generalizes it so it won't ask again.
+    "ambiguous_sell_on": {
+        "id": "pol-201", "covers": "ESCALATE_AMBIGUOUS_DO_NOT_GUESS", "kind": "sell_on",
+        "text": "Apply the sell-on basis (gross fee vs profit over book value) the controller has "
+                "settled on for materially identical clauses (learned from HITL decisions).",
+        "rule": {"when": "ambiguous_sell_on", "then": "apply_decided_basis"},
+    },
+    "stale_fx_rate": {
+        "id": "pol-202", "covers": "PROPOSE_FX_GAIN_LOSS", "kind": "fx",
+        "text": "Book the FX gain/loss between the signing rate and the payment rate, as the accountant "
+                "has decided before (learned from HITL decisions).",
+        "rule": {"when": "stale_fx_rate", "then": "book_fx_gain_loss"},
+    },
+    "addon_triggered_not_booked": {
+        "id": "pol-203", "covers": "PROPOSE_ACCRUAL_LIABILITY", "kind": "accrual",
+        "text": "When a match-triggered add-on is met, accrue the contingent liability, as the "
+                "accountant has approved before (learned from HITL decisions).",
+        "rule": {"when": "addon_triggered", "then": "accrue_liability"},
+    },
+    "contract_extension_amortization": {
+        "id": "pol-204", "covers": "PROPOSE_AMORTIZATION_ADJUSTMENT", "kind": "registration",
+        "text": "On a contract extension, re-amortise over the new term, as the controller has "
+                "approved before (learned from HITL decisions).",
+        "rule": {"when": "extension", "then": "re_amortise_new_term"},
+    },
+    "incoming_short_unexplained": {
+        "id": "pol-205", "covers": "CHASE_OR_ESCALATE", "kind": "collection",
+        "text": "An unexplained short receipt is chased for the balance, as the accountant has "
+                "handled before (learned from HITL decisions).",
+        "rule": {"when": "short_unexplained", "then": "chase_balance"},
+    },
 }
 
 
@@ -84,7 +116,8 @@ def propose_from_precedents(situation: str) -> dict:
     have the controller review it, and write the outcome (versioned, logged). Idempotent."""
     precs = similar_precedents(situation)
     draft = IMPROVE_DRAFTS.get(situation)
-    base = {"situation": situation, "precedents": [p["id"] for p in precs], "count": len(precs)}
+    base = {"situation": situation, "precedents": [p["id"] for p in precs], "count": len(precs),
+            "min_to_propose": MIN_TO_PROPOSE}
     if not draft:
         return {**base, "status": "no_template", "reason": f"no generalization template for {situation}"}
     if len(precs) < MIN_TO_PROPOSE:
