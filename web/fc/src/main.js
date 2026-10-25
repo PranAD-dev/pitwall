@@ -214,22 +214,25 @@ window.__pwActivateTerm = activateTerminal;   // menu "Control room" tile flies 
 // --- a SECOND, parallel agent: the LiveKit finance-report on its own billboard ---
 let reporter = null, reportPlayer = null, reportActive = false;
 const REPORT_SCREEN = 1;   // a different big screen from the terminal → two agents, live at once
-function activateReport() {
+function activateReport(mode) {
   if (!reporter) return;
   const m = scene.getObjectByName('big_screen_' + REPORT_SCREEN);
   if (m) { m.material.map = reporter.texture; m.material.needsUpdate = true; }
   reportActive = true;
   focusBoard(REPORT_SCREEN);        // normal framing (⛶ for fullscreen on demand)
   if (window.__pwHideMenu) window.__pwHideMenu();
-  reportPlayer.start('WI-5602');   // the fraud-hold decision, narrated + grounded
+  if (mode === 'financial') reportPlayer.startFinancial();   // reports desk: DB + forecast
+  else reportPlayer.start('WI-5602');                        // the fraud-hold decision
 }
 function deactivateReport() {
   const m = scene.getObjectByName('big_screen_' + REPORT_SCREEN);
   if (m && pillars[REPORT_SCREEN]) { m.material.map = pillars[REPORT_SCREEN].texture; m.material.needsUpdate = true; }
   reportActive = false;
   if (reportPlayer) reportPlayer.stop();
+  if (window.__pwReportHide) window.__pwReportHide();
 }
 window.__pwActivateReport = activateReport;
+window.__pwReportFinancial = () => activateReport('financial');
 window.__pwDeactivateReport = deactivateReport;
 
 // --- Transaction history: step the chain of events (audit + reasoning + evidence) ---
@@ -423,8 +426,20 @@ function termReceipt(d) {
   rows.slice(0, 3).forEach((r) => terminal.write('    ' + cols.map((c) => cap(r[c])).join('  '), TCOL.WHITE));
   if (rows.length > 3) terminal.write('    … +' + (rows.length - 3) + ' more', TCOL.DIM);
 }
+const REPORT_RE = /\b(financial report|report|p\s*&?\s*l|p and l|accounts|statement|statements|board pack|balance sheet|forecast report|our (?:finances|numbers))\b/i;
 window.__pwRunTerm = function (text) {
   if (!termActive) activateTerminal();
+  // offload report requests to the reports desk — a different kind of work, another billboard
+  if (REPORT_RE.test(text)) {
+    terminal.clear();
+    terminal.write('> ' + text, TCOL.WHITE);
+    terminal.write('ai_agent think', TCOL.VOLT);
+    terminal.write('  this is a reporting request, not a decision — offloading to the reports desk', TCOL.WHITE);
+    terminal.write('gateway ▸ handed to the financial-report billboard ▸ reading DB + forecast', TCOL.VOLT);
+    termBuf = ''; terminal.setPrompt('');
+    setTimeout(() => { deactivateTerminal(); activateReport('financial'); }, 1600);
+    return;
+  }
   terminal.clear();
   terminal.write('> ' + text, TCOL.WHITE);
   const es = new EventSource('/api/scenario/stream?text=' + encodeURIComponent(text));

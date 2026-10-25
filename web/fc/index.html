@@ -105,7 +105,7 @@
       cursor:pointer;letter-spacing:.06em;}
     #field-btn:hover{background:rgba(198,255,46,.16);border-color:#c6ff2e;}
     body.pw-clean #menu,body.pw-clean #pwnav,body.pw-clean #menu-btn,body.pw-clean #term-bar,
-    body.pw-clean #hist-bar,body.pw-clean #control,body.pw-clean #broadcast{display:none!important;}
+    body.pw-clean #hist-bar,body.pw-clean #control,body.pw-clean #broadcast,body.pw-clean #dl-report{display:none!important;}
   </style>
   <div id="menu">
     <div class="mwrap">
@@ -135,6 +135,30 @@
       b.onclick=function(){
         const on=document.body.classList.toggle('pw-clean');
         b.textContent = on ? '↩ BACK' : '👁 FIELD';
+      };
+    })();
+  </script>
+
+  <!-- ============ download the financial report (reports desk) ============ -->
+  <button id="dl-report" title="download the financial report">⬇ DOWNLOAD REPORT</button>
+  <style>
+    #dl-report{position:fixed;top:14px;left:14px;z-index:60;display:none;background:#c6ff2e;color:#05080c;
+      border:0;border-radius:8px;padding:9px 15px;font:12px ui-monospace,monospace;font-weight:800;
+      cursor:pointer;letter-spacing:.05em;box-shadow:0 6px 20px rgba(0,0,0,.4);}
+    #dl-report:hover{filter:brightness(1.08);}
+  </style>
+  <script>
+    (function(){
+      let md='', name='harbourside-financial-report.md';
+      const b=document.getElementById('dl-report');
+      window.__pwReportReady=function(rep){ md=(rep&&rep.markdown)||''; if(rep&&rep.as_of) name='harbourside-financial-report-'+rep.as_of+'.md'; b.style.display='block'; };
+      window.__pwReportHide=function(){ b.style.display='none'; };
+      b.onclick=function(){
+        if(!md) return;
+        const blob=new Blob([md],{type:'text/markdown'});
+        const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
       };
     })();
   </script>

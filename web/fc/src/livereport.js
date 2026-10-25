@@ -73,6 +73,32 @@ export function createLiveReport({ reporter }) {
     await playPlan(plan, 'replay · http');
   }
 
+  // The reports desk: a financial report read straight off the DB + forecast, narrated,
+  // and handed to the download button. This is what the terminal offloads here.
+  async function startFinancial() {
+    if (running) return;
+    running = true;
+    primeSpeech();
+    reporter.showScene(null); reporter.setSource('reports desk…');
+    reporter.idle('reading the database + forecast…');
+    let rep;
+    try { rep = await fetch('/api/finreport').then((r) => r.json()); }
+    catch (e) { reporter.idle('report backend offline — run `make fc`'); running = false; return; }
+    if (!running) return;
+    if (window.__pwReportReady) window.__pwReportReady(rep);     // enable the download button
+    reporter.setTitle(rep.title || 'financial report');
+    reporter.setSource('financial report · ' + (rep.as_of || ''));
+    await ensureVoices();
+    const secs = rep.sections || [];
+    for (let i = 0; i < secs.length && running; i++) {
+      const say = secs[i].say || '';
+      reporter.showScene(secs[i], i, secs.length);
+      const dwell = Math.max(5000, say.split(/\s+/).filter(Boolean).length * 380 + 1200);
+      await Promise.all([Promise.race([speakLine(say), wait(16000)]), wait(dwell)]);
+      if (running) await wait(600);
+    }
+  }
+
   async function viaLiveKit(subject, timeoutMs) {
     const tok = await fetch('/api/livekit/token?room=pitwall-report&identity=stadium').then((r) => r.json());
     if (!tok || tok.error || !tok.token) throw new Error('no-token');
@@ -123,5 +149,5 @@ export function createLiveReport({ reporter }) {
     try { speechSynthesis.cancel(); } catch (e) {}
     if (room) { try { room.disconnect(); } catch (e) {} room = null; }
   }
-  return { start, stop };
+  return { start, startFinancial, stop };
 }
